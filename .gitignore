@@ -1,5 +1,4 @@
-.DS_Store
-__pychache__/
-*.pyc
-venv/
-.idea/
+.gitconfig
+oracle-instantclient12.2-basic-12.2.0.1.0-1.x86_64.rpm
+oracle-instantclient12.2-devel-12.2.0.1.0-1.x86_64.rpm
+openshift/postgis-secrets.yaml
