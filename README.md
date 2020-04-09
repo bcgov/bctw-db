@@ -20,3 +20,9 @@ docker run \
   --env POSTGRES_DB=$POSTGRES_DB \
   bctw-db:1.0
 ```
+
+Now you can connect localy.
+```bash
+psql -h localhost -p 5432 user schema
+```
+
