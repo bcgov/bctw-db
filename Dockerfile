@@ -1,14 +1,15 @@
 FROM postgres:12
 
+# This is our time zone
+ENV TZ America/Vancouver
+
 # install PostGIS
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends \
-  postgresql-12-postgis-3 \
-  postgresql-12-postgis-3-dbgsym \
-  postgresql-12-postgis-3-scripts \
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3-dbgsym
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3-scripts
 
 # Set the time zone
-ENV TZ America/Vancouver
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Load the PostGIS extension into the database
