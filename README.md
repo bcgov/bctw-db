@@ -23,6 +23,6 @@ docker run \
 
 Now you can connect localy.
 ```bash
-psql -h localhost -p 5432 user schema
+psql -h localhost -p 5432 $POSTGRES_DB $POSTGRES_USER
 ```
 
