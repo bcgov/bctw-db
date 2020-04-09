@@ -1,5 +1,7 @@
-# Spatial Database Application
+# Spatial Database Docker Application
 ## British Columbia Telemetry Warehouse
+
+Minimal Postresql 12 and PostGIS 3.0 Docker setup.
 
 ### Downloading and Building
 ```bash
