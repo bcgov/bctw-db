@@ -71,5 +71,6 @@ from
   caribou_critter c
 where
   p.device_id = c.device_id
+  -- TODO: Also need to compare vendors
 ;
 
