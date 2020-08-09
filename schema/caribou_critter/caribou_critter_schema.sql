@@ -52,5 +52,6 @@ create table caribou_critter (
 );
 
 create index device_id_idx on caribou_critter (device_id);
+create index collar_make_idx on caribou_critter (collar_make);
 
 comment on table caribou_critter is 'Caribou telemetry collar summary - Snapshot 02-2020';
