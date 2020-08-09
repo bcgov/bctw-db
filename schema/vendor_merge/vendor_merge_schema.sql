@@ -31,7 +31,7 @@
 
 
 
--- This query currently takes 5 seconds. We can do better.
+-- Currently set to output json
 -- create or replace view vendor_merge as
 with pings as (
   select
