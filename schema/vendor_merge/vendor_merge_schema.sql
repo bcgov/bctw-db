@@ -70,3 +70,4 @@ comment on table vendor_merge is 'Table containing data merged from multiple ven
 create index vendor_merge_gist on vendor_merge using gist ("geom");
 create index vendor_merge_idx on vendor_merge(vendor_merge_id);
 create index vendor_merge_idx2 on vendor_merge(date_recorded);
+create index vendor_merge_idx3 on vendor_merge(animal_id);
