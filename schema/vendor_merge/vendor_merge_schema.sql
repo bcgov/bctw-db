@@ -1,6 +1,6 @@
-drop table if exists vendor_merge;
+drop materialized view if exists vendor_merge_view;
 
-create table vendor_merge as
+create materialized view vendor_merge_view as
 with pings as (
   select
     geom "geom",
@@ -65,9 +65,9 @@ where
   p.device_vendor = c.collar_make
 ;
 
-comment on table vendor_merge is 'Table containing data merged from multiple vendor tables. Additional animal information is then merged to collar information. GeoJSON formatting is expensive so it is prepared and stored in a separate column.';
+comment on materialized view vendor_merge_view is 'Materialized view containing data merged from multiple vendor tables. Additional animal information is then merged to collar information. GeoJSON formatting is expensive so it is prepared and stored in a separate column.';
 
-create index vendor_merge_gist on vendor_merge using gist ("geom");
-create index vendor_merge_idx on vendor_merge(vendor_merge_id);
-create index vendor_merge_idx2 on vendor_merge(date_recorded);
-create index vendor_merge_idx3 on vendor_merge(animal_id);
+create index vendor_merge_gist on vendor_merge_view using gist ("geom");
+create index vendor_merge_idx on vendor_merge_view(vendor_merge_id);
+create index vendor_merge_idx2 on vendor_merge_view(date_recorded);
+create index vendor_merge_idx3 on vendor_merge_view(animal_id);
