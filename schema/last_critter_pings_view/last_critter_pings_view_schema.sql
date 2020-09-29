@@ -9,3 +9,5 @@ order by
   device_id,
   date_recorded desc
 ;
+
+COMMENT ON VIEW last_critter_pings_view IS 'Last Critter Pings View contains the geojson data from vender_merge_view organized by the most recent recorded date for each device ID.';

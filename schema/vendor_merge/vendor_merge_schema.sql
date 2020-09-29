@@ -71,3 +71,8 @@ create index vendor_merge_gist on vendor_merge_view using gist ("geom");
 create index vendor_merge_idx on vendor_merge_view(vendor_merge_id);
 create index vendor_merge_idx2 on vendor_merge_view(date_recorded);
 create index vendor_merge_idx3 on vendor_merge_view(animal_id);
+
+COMMENT ON COLUMN vendor_merge_view.animal_status IS 'Animal Status is the vital status of the animal';
+COMMENT ON COLUMN vendor_merge_view.geom IS 'Geom is a JSON object that contains spacial, collar, and animal data. An animal_id may have multiple rows with different spacial data.';
+-- COMMENT ON COLUMN vendor_merge_view.live_stage IS '';
+-- COMMENT ON COLUMN vendor_merge_view.population_unit IS '';
