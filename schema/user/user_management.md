@@ -12,3 +12,14 @@
 * From the requirements:
   > "[Administrator] does not have the ability to view GPS collar information, however, unless granted by the “Owner”
   * An admin assigns a collar to an owner, and then that owner has to assign view permissions back to the admin. Does that make sense? Since a user can have multiple roles, what's preventing the admin from assigning owner status of a collar to themself? 
+
+
+  ### required api calls (not db specific)
+  * register / deregister a collar
+  * change vendor-specific polling interval
+  * > abililty to control data at a geographic level - ie points and polygons
+  * 
+
+  ### data model questions
+  * is the vendor_merge_view a good enough representation of the data, or do critter and device specific tables need to be added?
+  * where does collar and animal data come from?

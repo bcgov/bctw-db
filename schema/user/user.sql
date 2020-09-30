@@ -34,7 +34,7 @@ COMMENT ON TABLE user_role_xref is 'Table that associates a user with a role typ
 
 CREATE TABLE user_collar_access 
 (
-  id            PRIMARY KEY DEFAULT uuid_generate_v1(),
+  -- id            PRIMARY KEY DEFAULT uuid_generate_v1(),
   user_id       uuid,
   -- role_id       uuid,
   collar_id     INTEGER,
