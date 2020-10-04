@@ -6,6 +6,8 @@ DROP TABLE IF EXISTS user_collar_access;
 -- enable uuid_generate functions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- note - may need to change this table name. user is technically a reserved word in psql
+-- so referencing this table will require prepending schema name or referencing it in double quotes
 CREATE TABLE bctw.user
 (
   user_id     uuid PRIMARY key DEFAULT uuid_generate_v1(),
@@ -13,7 +15,7 @@ CREATE TABLE bctw.user
   bceid       VARCHAR(50),
   email       VARCHAR(50),
   expire_date TIMESTAMP,
-  deleted     BOOLEAN,
+  deleted     BOOLEAN DEFAULT false,
   deleted_at  TIMESTAMP
 );
 
@@ -21,7 +23,7 @@ CREATE TABLE bctw.user_role_type
 (
   role_id     uuid PRIMARY key DEFAULT uuid_generate_v1(),
   role_type   VARCHAR(50),
-  description VARCHAR(100)
+  description VARCHAR(200)
 );
 COMMENT ON TABLE bctw.user_role_type is 'User Role Type is a code table for role types. Current role types are Administrator, Owner, Observer';
 
@@ -45,7 +47,7 @@ CREATE TABLE bctw.user_collar_access
   collar_access collar_access_type DEFAULT 'none',
   collar_vendor VARCHAR(50) NOT NULL,
   expire_date   TIMESTAMP,
-  deleted       BOOLEAN,
+  deleted       BOOLEAN DEFAULT false,
   deleted_at    TIMESTAMP,
   PRIMARY KEY (user_id, collar_id, collar_vendor)
 );
