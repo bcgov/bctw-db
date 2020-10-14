@@ -60,18 +60,7 @@ CREATE TABLE bctw.user_collar_access
 );
 COMMENT ON TABLE user_collar_access is 'User Collar Access is a table for associating a user with critter collars and the collar permissions';
 
-/*
-workflow for adding an animal -
-  * user inputs animal data:
-      - insert to animal table
-      - row inserted to user_animal_assignment table.
-  * user can then:
-    * link the animal to an existing device 
-    * or upload data for a new vectronics device
-      - insert new data to to collar table
-    * in either case:
-      - insert to collar_animal_assignment table
-*/
+
 
 CREATE TABLE bctw.user_animal_assignment 
 (
@@ -81,4 +70,3 @@ CREATE TABLE bctw.user_animal_assignment
   end_date DATE
 )
 comment on table bctw.user_animal_assignment is '';
-

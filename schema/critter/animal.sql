@@ -29,7 +29,8 @@ create  TABLE bctw.animal (
   sex VARCHAR(10),
   species VARCHAR(80),
   trans_location BOOLEAN,
-  wlh_id VARCHAR(50)
+  wlh_id VARCHAR(50),
+  nickname VARCHAR(100)
 );
 
 CREATE index animal_id_idx on bctw.animal (animal_id);
@@ -64,9 +65,80 @@ insert into user_animal_assignment
 select userid, animal_id, effective_date from ii;
 */
 
--- get a list of animals with their colllar_id
+-- getting only critters from merge view that user has access to
+-- todo: check user_animal_assignment effective dates
+with 
+  userid as (select user_id from bctw.user where bctw.user.idir = 'jcraven'),
+  ids as (select animal_id from user_animal_assignment uaa where uaa.user_id = (select * from userid))
+select * from vendor_merge_view vmv where vmv.animal_id = any(select * from ids);
+
+-- get a list of animals with their collar id
 select a.*, c.device_id 
 from animal a
 join collar_animal_assignment caa on a.animal_id = caa.animal_id 
 join collar c on caa.device_id = c.device_id 
 
+/*
+workflow for adding an animal -
+  * user inputs animal data:
+      - insert to animal table
+      - row inserted to user_animal_assignment table.
+  * user can then:
+    * link the animal to an existing device 
+    * or upload data for a new vectronics device
+      - insert new data to to collar table
+    * in either case:
+      - insert to collar_animal_assignment table
+*/
+
+/* add animal 
+  params: 
+    animal row
+    optional collar id
+*/
+create or replace function bctw.add_animal(stridir text, animaljson json, deviceid integer)
+ returns json 
+ language plpgsql
+as $function$
+declare 
+userid uuid;
+ar record;
+today date := (select current_date);
+enddate date := (select 'infinity'::date);
+begin
+	userid := (select user_id from bctw.user u where u.idir = stridir);
+	-- create an animal row from the json
+	select t.* into ar from (select * from json_populate_record(null::bctw.animal, animaljson)) t;
+	
+	insert into animal (animal_id, wlh_id, animal_status, nickname)
+	values (ar.animal_id, ar.wlh_id, ar.animal_status, ar.nickname)
+	on conflict (animal_id)
+	do nothing; -- todo: upsert instead
+	
+	insert into user_animal_assignment (user_id, animal_id, effective_date, end_date)
+		values (userid, ar.animal_id, today, enddate);
+
+	if deviceid is not null
+	then
+			-- check the collar exists
+			if not exists (select 1 from bctw.collar c where c.device_id = deviceid) 
+				then raise exception 'this device id does not exist %', deviceid;
+			end if; 
+			-- check this collar isn't already assigned
+			if exists (select 1 from collar_animal_assignment ca
+				where ca.device_id = deviceid
+				and daterange(today, enddate, '[]') && daterange(ca.effective_date, ca.end_date, '[]'))
+				then raise exception 'collar % is already assigned to another critter', deviceid;
+			end if;
+		insert into collar_animal_assignment (animal_id, device_id, effective_date, end_date)
+		values (ar.animal_id, deviceid, today, enddate);
+	end if;
+
+	return (select row_to_json(t) from (
+		select a.animal_id, a.nickname, a.wlh_id, a.animal_status , caa.device_id from animal a 
+ 		left join collar_animal_assignment caa ON a.animal_id = caa.animal_id 
+		where a.animal_id  = ar.animal_id
+	) t);
+end;
+$function$
+;
