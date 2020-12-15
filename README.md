@@ -1,4 +1,5 @@
-# Spatial Database Docker Application
+![Lifecycle: Maturing](https://img.shields.io/badge/Lifecycle-Maturing-007EC6)
+
 ## British Columbia Telemetry Warehouse
 
 Minimal Postresql 12 and PostGIS 3.0 Docker setup.
@@ -23,8 +24,7 @@ docker run \
   bctw-db:1.0
 ```
 
-Now you can connect localy.
+Now you can connect locally.
 ```bash
 psql -h localhost -p 5432 $POSTGRES_DB $POSTGRES_USER
 ```
-
