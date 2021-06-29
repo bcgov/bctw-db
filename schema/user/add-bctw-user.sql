@@ -14,4 +14,11 @@ insert into bctw.user (
   'Auger'
 );
 
+-- Create new 'access' column
+alter table bctw.user add column access varchar(8);
+comment on column bctw.user.access is 'Status of user onboarding. They have passed through keycloak then must request special access to the application. Limited to: pending, denied or granted';
 ALTER TABLE bctw.user ADD CONSTRAINT "enforce_access" CHECK (access = ANY (ARRAY['pending', 'denied', 'granted']));
+
+-- Insert access data
+update bctw.user set access = 'granted';
+
