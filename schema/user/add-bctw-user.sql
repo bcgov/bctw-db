@@ -22,3 +22,6 @@ ALTER TABLE bctw.user ADD CONSTRAINT "enforce_access" CHECK (access = ANY (ARRAY
 -- Insert access data
 update bctw.user set access = 'granted';
 
+insert into bctw.user ( bceid, access) values ( 'kmb_test1', 'granted');
+insert into bctw.user ( bceid, access) values ( 'kmb_test2', 'pending');
+insert into bctw.user ( bceid, access) values ( 'kmb_test3', 'denied');
