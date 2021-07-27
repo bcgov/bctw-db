@@ -32,20 +32,20 @@ objects:
         bctw-db; cpu limit for container bctw-db'
       openshift.io/deployment-config.latest-version: "1"
       openshift.io/deployment-config.name: bctw-db
-      openshift.io/deployment.name: bctw-db-1
+      openshift.io/deployment.name: bctw-db
       openshift.io/scc: restricted
     creationTimestamp: null
-    generateName: bctw-db-1-
+    generateName: bctw-db-test
     labels:
       app: bctw-db
-      deployment: bctw-db-1
+      deployment: bctw-db
       deploymentconfig: bctw-db
     ownerReferences:
     - apiVersion: v1
       blockOwnerDeletion: true
       controller: true
       kind: ReplicationController
-      name: bctw-db-1
+      name: bctw-db
       uid: 28ad016f-e1c1-4be5-b8e7-3e1b2e7c65e7
   spec:
     containers:
