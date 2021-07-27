@@ -11,7 +11,7 @@ cd bctw-db
 docker build --tag bctw-db:1.0 .
 ```
 
-### Running
+### Running Locally
 If you have environment variables currently set for the database environment you can do the following. Otherwise substitute in your configuration.
 ```bash
 docker run \
@@ -27,4 +27,10 @@ docker run \
 Now you can connect locally.
 ```bash
 psql -h localhost -p 5432 $POSTGRES_DB $POSTGRES_USER
+```
+
+### Running in OpenShift
+```bash
+cd bctw-db
+oc new-app --name=bctw-db openshift/test-bctw-db.yaml
 ```
