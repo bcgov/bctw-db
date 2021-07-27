@@ -33,5 +33,5 @@ psql -h localhost -p 5432 $POSTGRES_DB $POSTGRES_USER
 ```bash
 cd bctw-db
 oc project 0dff19-test
-oc new-app --name=bctw-db openshift/test-bctw-db.yaml
+oc new-app openshift/bctw-db.yaml
 ```
