@@ -13,6 +13,2561 @@ objects:
             "name": "",
             "interface": "eth0",
             "ips": [
+                "10.97.113.224"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.113.224"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-api
+      openshift.io/deployment.name: bctw-api-31
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-api-31
+    name: bctw-api-31-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-api-31
+      uid: a8d533bd-7152-4992-8164-96d66668063e
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-api-31
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-test
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-30.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.52.92"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.52.92"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      openshift.io/deployment-config.latest-version: "31"
+      openshift.io/deployment-config.name: bctw-api
+      openshift.io/deployment.name: bctw-api-31
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-api-31-
+    labels:
+      app: bctw
+      app-group: bctw
+      deployment: bctw-api-31
+      deploymentconfig: bctw-api
+      name: bctw-api
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicationController
+      name: bctw-api-31
+      uid: a8d533bd-7152-4992-8164-96d66668063e
+  spec:
+    containers:
+    - env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VECTRONICS_URL
+        value: https://api.vectronic-wildlife.com/v2/collar
+      - name: BCTW_CHES_USERNAME
+        valueFrom:
+          secretKeyRef:
+            key: BCTW_CHES_USERNAME
+            name: ches
+      - name: BCTW_CHES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: BCTW_CHES_PASSWORD
+            name: ches
+      - name: BCTW_CHES_API_URL
+        value: https://ches-dev.apps.silver.devops.gov.bc.ca
+      - name: BCTW_CHES_AUTH_URL
+        value: https://dev.oidc.gov.bc.ca/auth/realms/jbd6rnxw
+      - name: BCTW_CHES_TO_EMAIL
+        value: popkinj@littleearth.ca
+      - name: BCTW_CHES_FROM_EMAIL
+        value: popkinj@littleearth.ca
+      - name: PERMISSION_EMAILS_ENABLED
+        value: "true"
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-api@sha256:5c09de0134507f64d524e5c515a1930a27d47fba45609359a0edbd5dca616771
+      imagePullPolicy: IfNotPresent
+      name: bctw-api
+      ports:
+      - containerPort: 8080
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 10m
+          memory: 10Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-41.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.5"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.5"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1626915600-
+    labels:
+      controller-uid: cdabc49a-d591-4beb-afef-d21ed733743a
+      job-name: bctw-cronjob-ats-1626915600
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1626915600
+      uid: cdabc49a-d591-4beb-afef-d21ed733743a
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.76"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.76"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1627002000-
+    labels:
+      controller-uid: 2530feba-9c33-4209-a49b-b6bfb04d1529
+      job-name: bctw-cronjob-ats-1627002000
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1627002000
+      uid: 2530feba-9c33-4209-a49b-b6bfb04d1529
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.161"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.161"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1627088400-
+    labels:
+      controller-uid: 884bfb41-b810-4ef0-a650-997ba6d2af2c
+      job-name: bctw-cronjob-ats-1627088400
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1627088400
+      uid: 884bfb41-b810-4ef0-a650-997ba6d2af2c
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.247"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.247"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1627174800-
+    labels:
+      controller-uid: 65b1e924-b049-40cd-8e27-4e1dc98a145a
+      job-name: bctw-cronjob-ats-1627174800
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1627174800
+      uid: 65b1e924-b049-40cd-8e27-4e1dc98a145a
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.156"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.156"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1627261200-
+    labels:
+      controller-uid: 8bec88ee-42a3-4d3a-b107-8de0d34857aa
+      job-name: bctw-cronjob-ats-1627261200
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1627261200
+      uid: 8bec88ee-42a3-4d3a-b107-8de0d34857aa
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.181"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.181"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-ats; cpu, memory limit for container bctw-cronjob-ats'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-ats-1627347600-
+    labels:
+      controller-uid: 045daf21-919c-49cb-baad-737ea9d4e8f9
+      job-name: bctw-cronjob-ats-1627347600
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-ats-1627347600
+      uid: 045daf21-919c-49cb-baad-737ea9d4e8f9
+  spec:
+    activeDeadlineSeconds: 200
+    containers:
+    - command:
+      - npm
+      - run
+      - ats
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: ATS_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: ats-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-ats
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.80.192"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.80.192"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-lotek; cpu, memory limit for container bctw-cronjob-lotek'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-lotek-1625446800-
+    labels:
+      controller-uid: 99674e57-23e3-4644-ac74-c7f7bb6821f9
+      job-name: bctw-cronjob-lotek-1625446800
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-lotek-1625446800
+      uid: 99674e57-23e3-4644-ac74-c7f7bb6821f9
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - lotek
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: LOTEK_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: lotek-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-lotek
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-17.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.246"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.246"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-lotek; cpu, memory limit for container bctw-cronjob-lotek'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-lotek-1627174800-
+    labels:
+      controller-uid: 7261deff-57b8-49fa-bf5c-3ddac5d519a5
+      job-name: bctw-cronjob-lotek-1627174800
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-lotek-1627174800
+      uid: 7261deff-57b8-49fa-bf5c-3ddac5d519a5
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - lotek
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: LOTEK_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: lotek-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-lotek
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.157"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.157"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-lotek; cpu, memory limit for container bctw-cronjob-lotek'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-lotek-1627261200-
+    labels:
+      controller-uid: 285a0071-0720-45ae-9c4d-c04ebde6fd01
+      job-name: bctw-cronjob-lotek-1627261200
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-lotek-1627261200
+      uid: 285a0071-0720-45ae-9c4d-c04ebde6fd01
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - lotek
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: LOTEK_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: lotek-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-lotek
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.180"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.116.180"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-lotek; cpu, memory limit for container bctw-cronjob-lotek'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-lotek-1627347600-
+    labels:
+      controller-uid: ed0f248d-8248-4337-b7e4-3a6b2f9dc6bd
+      job-name: bctw-cronjob-lotek-1627347600
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-lotek-1627347600
+      uid: ed0f248d-8248-4337-b7e4-3a6b2f9dc6bd
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - lotek
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VENDOR_API_CREDENTIALS_KEY
+        valueFrom:
+          secretKeyRef:
+            key: key
+            name: vendor-api-credentials-pkey
+      - name: LOTEK_API_CREDENTIAL_NAME
+        valueFrom:
+          secretKeyRef:
+            key: name
+            name: lotek-account-identifier-1
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-lotek
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.248"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.117.248"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vectronics; cpu, memory limit for container bctw-cronjob-vectronics'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vectronics-1627174800-
+    labels:
+      controller-uid: 583b7d38-604e-4f92-bd8d-33797e4cf33c
+      job-name: bctw-cronjob-vectronics-1627174800
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vectronics-1627174800
+      uid: 583b7d38-604e-4f92-bd8d-33797e4cf33c
+  spec:
+    activeDeadlineSeconds: 100
+    containers:
+    - command:
+      - npm
+      - run
+      - vectronics
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VECTRONICS_URL
+        value: https://api.vectronic-wildlife.com/v2/collar
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-vectronics
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-32.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.159"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.159"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vectronics; cpu, memory limit for container bctw-cronjob-vectronics'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vectronics-1627261200-
+    labels:
+      controller-uid: 6d6b80ec-f676-4fa4-87ee-7307cfad41d3
+      job-name: bctw-cronjob-vectronics-1627261200
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vectronics-1627261200
+      uid: 6d6b80ec-f676-4fa4-87ee-7307cfad41d3
+  spec:
+    activeDeadlineSeconds: 100
+    containers:
+    - command:
+      - npm
+      - run
+      - vectronics
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VECTRONICS_URL
+        value: https://api.vectronic-wildlife.com/v2/collar
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-vectronics
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.214"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.214"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vectronics; cpu, memory limit for container bctw-cronjob-vectronics'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vectronics-1627347600-
+    labels:
+      controller-uid: 3e1b9a9f-336e-4c16-9f0a-b66461a4e503
+      job-name: bctw-cronjob-vectronics-1627347600
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vectronics-1627347600
+      uid: 3e1b9a9f-336e-4c16-9f0a-b66461a4e503
+  spec:
+    activeDeadlineSeconds: 100
+    containers:
+    - command:
+      - npm
+      - run
+      - vectronics
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: VECTRONICS_URL
+        value: https://api.vectronic-wildlife.com/v2/collar
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: Always
+      name: bctw-cronjob-vectronics
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.80.198"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.80.198"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vendor-merge; cpu, memory limit for container bctw-cronjob-vendor-merge'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vendor-merge-1625450400-
+    labels:
+      controller-uid: c2d8711e-45bc-419e-b02e-f25b4bee233a
+      job-name: bctw-cronjob-vendor-merge-1625450400
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vendor-merge-1625450400
+      uid: c2d8711e-45bc-419e-b02e-f25b4bee233a
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - vendor-merge
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: IfNotPresent
+      name: bctw-cronjob-vendor-merge
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-17.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.122"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.122"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vendor-merge; cpu, memory limit for container bctw-cronjob-vendor-merge'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vendor-merge-1627178400-
+    labels:
+      controller-uid: 82dea919-b360-4039-8762-05da3c76e0e8
+      job-name: bctw-cronjob-vendor-merge-1627178400
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vendor-merge-1627178400
+      uid: 82dea919-b360-4039-8762-05da3c76e0e8
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - vendor-merge
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: IfNotPresent
+      name: bctw-cronjob-vendor-merge
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.187"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.44.187"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vendor-merge; cpu, memory limit for container bctw-cronjob-vendor-merge'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vendor-merge-1627264800-
+    labels:
+      controller-uid: b50830b1-13a5-4bbe-822d-59e592c9ce85
+      job-name: bctw-cronjob-vendor-merge-1627264800
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vendor-merge-1627264800
+      uid: b50830b1-13a5-4bbe-822d-59e592c9ce85
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - vendor-merge
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: IfNotPresent
+      name: bctw-cronjob-vendor-merge
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.217"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.45.217"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-cronjob-vendor-merge; cpu, memory limit for container bctw-cronjob-vendor-merge'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-cronjob-vendor-merge-1627351200-
+    labels:
+      controller-uid: 1f5abce9-fe5a-4607-911f-4c54daa13c98
+      job-name: bctw-cronjob-vendor-merge-1627351200
+    ownerReferences:
+    - apiVersion: batch/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Job
+      name: bctw-cronjob-vendor-merge-1627351200
+      uid: 1f5abce9-fe5a-4607-911f-4c54daa13c98
+  spec:
+    activeDeadlineSeconds: 90
+    containers:
+    - command:
+      - npm
+      - run
+      - vendor-merge
+      env:
+      - name: NODE_ENV
+        value: production
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector:dev
+      imagePullPolicy: IfNotPresent
+      name: bctw-cronjob-vendor-merge
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-37.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.118.23"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.118.23"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      openshift.io/deployment-config.latest-version: "5"
+      openshift.io/deployment-config.name: bctw-data-collector
+      openshift.io/deployment.name: bctw-data-collector-5
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-data-collector-5-
+    labels:
+      app: bctw
+      app-group: bctw
+      deployment: bctw-data-collector-5
+      deploymentconfig: bctw-data-collector
+      name: bctw-data-collector
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicationController
+      name: bctw-data-collector-5
+      uid: 22d10cce-4035-483c-b82e-c2e40a02e6b9
+  spec:
+    containers:
+    - image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-data-collector@sha256:419147f1c7b6e36a60d173e3dc9cbd89786a50de7c92cebb2a03a9a38fb08fb3
+      imagePullPolicy: IfNotPresent
+      name: bctw-data-collector
+      ports:
+      - containerPort: 8080
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 10m
+          memory: 10Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-33.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
                 "10.97.51.86"
             ],
             "default": true,
@@ -32,20 +2587,20 @@ objects:
         bctw-db; cpu limit for container bctw-db'
       openshift.io/deployment-config.latest-version: "1"
       openshift.io/deployment-config.name: bctw-db
-      openshift.io/deployment.name: bctw-db-2
+      openshift.io/deployment.name: bctw-db-1
       openshift.io/scc: restricted
     creationTimestamp: null
-    generateName: bctw-db-2-
+    generateName: bctw-db-1-
     labels:
       app: bctw-db
-      deployment: bctw-db-2
+      deployment: bctw-db-1
       deploymentconfig: bctw-db
     ownerReferences:
     - apiVersion: v1
       blockOwnerDeletion: true
       controller: true
       kind: ReplicationController
-      name: bctw-db-2
+      name: bctw-db-1
       uid: 28ad016f-e1c1-4be5-b8e7-3e1b2e7c65e7
   spec:
     containers:
@@ -127,4 +2682,1006 @@ objects:
       secret:
         defaultMode: 420
         secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.53.159"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.53.159"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-100
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-100
+    name: bctw-ui-100-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-100
+      uid: 3344959c-b4b3-45a4-8291-2d09b4bd2d00
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-100
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-41.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.76.77"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.76.77"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-101
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-101
+    name: bctw-ui-101-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-101
+      uid: 5f7c8013-aed9-46e2-bb89-c1b2aa65185b
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-101
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-16.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.67.204"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.67.204"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-102
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-102
+    name: bctw-ui-102-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-102
+      uid: 0312d2c8-9330-43e7-84a8-4b89d57b8413
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-102
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-35.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.46.4"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.46.4"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-103
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-103
+    name: bctw-ui-103-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-103
+      uid: db24ad2a-88f0-4bae-b687-6b5a54488b60
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-103
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-13.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.46.5"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.46.5"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container bctw-ui; cpu, memory limit for container bctw-ui'
+      openshift.io/deployment-config.latest-version: "103"
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-103
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: bctw-ui-103-
+    labels:
+      app: bctw
+      app-group: bctw
+      deployment: bctw-ui-103
+      deploymentconfig: bctw-ui
+      name: bctw-ui
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicationController
+      name: bctw-ui-103
+      uid: db24ad2a-88f0-4bae-b687-6b5a54488b60
+  spec:
+    containers:
+    - env:
+      - name: NODE_ENV
+        value: production
+      - name: BCTW_SESSION_SALT
+        value: qrjewvcu78ds97f234523jkldvjdjdsl
+      - name: BASE_URL
+        value: /
+      - name: BCTW_API_HOST
+        value: bctw-api
+      - name: BCTW_API_PORT
+        value: "8080"
+      - name: KEYCLOAK_SERVER_URL
+        value: https://dev.oidc.gov.bc.ca/auth/
+      - name: KEYCLOAK_REALM
+        value: 0jjhl1lc
+      - name: KEYCLOAK_CLIENT_ID
+        value: bctw-ui
+      - name: POSTGRES_SERVER_HOST
+        value: bctw-db
+      - name: POSTGRES_SERVER_PORT
+        value: "5432"
+      - name: POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            key: username
+            name: bctw
+      - name: POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: bctw
+      - name: POSTGRES_DB
+        value: bctw
+      - name: BCTW_CHES_USERNAME
+        valueFrom:
+          secretKeyRef:
+            key: BCTW_CHES_USERNAME
+            name: ches
+      - name: BCTW_CHES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: BCTW_CHES_PASSWORD
+            name: ches
+      - name: BCTW_CHES_API_URL
+        value: https://ches-dev.apps.silver.devops.gov.bc.ca
+      - name: BCTW_CHES_AUTH_URL
+        value: https://dev.oidc.gov.bc.ca/auth/realms/jbd6rnxw
+      - name: BCTW_CHES_TO_EMAIL
+        value: popkinj@littleearth.ca,victor.Chong@quartech.com
+      - name: BCTW_CHES_FROM_EMAIL
+        value: bctw@gov.bc.ca
+      envFrom:
+      - secretRef:
+          name: bctw-ui-build2
+      image: image-registry.openshift-image-registry.svc:5000/0dff19-tools/bctw-ui@sha256:90802b135d5a0ad74e68074ef5aa063bf3273424c5e6ec143596241ba4f46736
+      imagePullPolicy: IfNotPresent
+      name: bctw-ui
+      ports:
+      - containerPort: 8080
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-p887k
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-wv6g8
+    nodeName: mcs-silver-app-13.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: default-token-p887k
+      secret:
+        defaultMode: 420
+        secretName: default-token-p887k
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.25.234"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.25.234"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-104
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-104
+    name: bctw-ui-104-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-104
+      uid: a339f3e6-43d9-42fa-a600-dcdcd82f16f2
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-104
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-05.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.65.156"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.65.156"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-97
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-97
+    name: bctw-ui-97-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-97
+      uid: e3dc7f9e-3ffc-4f4e-820a-63462701abbe
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-97
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-34.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.89.146"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.89.146"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-98
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-98
+    name: bctw-ui-98-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-98
+      uid: 417770ff-ccee-4711-82c2-5f00038a42fe
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-98
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-18.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
+  status: {}
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      k8s.v1.cni.cncf.io/network-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.107.39"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      k8s.v1.cni.cncf.io/networks-status: |-
+        [{
+            "name": "",
+            "interface": "eth0",
+            "ips": [
+                "10.97.107.39"
+            ],
+            "default": true,
+            "dns": {}
+        }]
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container deployment; cpu, memory limit for container deployment'
+      openshift.io/deployment-config.name: bctw-ui
+      openshift.io/deployment.name: bctw-ui-99
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    labels:
+      openshift.io/deployer-pod-for.name: bctw-ui-99
+    name: bctw-ui-99-deploy
+    ownerReferences:
+    - apiVersion: v1
+      kind: ReplicationController
+      name: bctw-ui-99
+      uid: 6d9c5801-3485-4feb-81ee-868987e1fd62
+  spec:
+    activeDeadlineSeconds: 21600
+    containers:
+    - env:
+      - name: OPENSHIFT_DEPLOYMENT_NAME
+        value: bctw-ui-99
+      - name: OPENSHIFT_DEPLOYMENT_NAMESPACE
+        value: 0dff19-dev
+      image: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:9b8540bc6f49ea0729f66743fa52b77aa7ac16aa0d1a412ef9b280906430bb46
+      imagePullPolicy: IfNotPresent
+      name: deployment
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1005840000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: deployer-token-k6rjx
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: deployer-dockercfg-clf8l
+    nodeName: mcs-silver-app-27.dmz
+    nodeSelector:
+      node-role.kubernetes.io/worker: ""
+    priority: 0
+    restartPolicy: Never
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1005840000
+      seLinuxOptions:
+        level: s0:c76,c70
+    serviceAccount: deployer
+    serviceAccountName: deployer
+    shareProcessNamespace: false
+    terminationGracePeriodSeconds: 10
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: deployer-token-k6rjx
+      secret:
+        defaultMode: 420
+        secretName: deployer-token-k6rjx
   status: {}
