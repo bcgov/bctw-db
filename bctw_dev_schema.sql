@@ -3,7 +3,7 @@
 --
 
 -- Dumped from database version 12.5
--- Dumped by pg_dump version 13.4 (Ubuntu 13.4-1.pgdg18.04+1)
+-- Dumped by pg_dump version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -106,17 +106,57 @@ CREATE TYPE bctw.critter_permission_json AS (
 ALTER TYPE bctw.critter_permission_json OWNER TO bctw;
 
 --
+-- Name: domain_type; Type: TYPE; Schema: bctw; Owner: bctw
+--
+
+CREATE TYPE bctw.domain_type AS ENUM (
+    'bceid',
+    'idir'
+);
+
+
+ALTER TYPE bctw.domain_type OWNER TO bctw;
+
+--
+-- Name: TYPE domain_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TYPE bctw.domain_type IS 'Keycloak domain types, stored in the user and onboarding tables as column "domain"';
+
+
+--
+-- Name: onboarding_status; Type: TYPE; Schema: bctw; Owner: bctw
+--
+
+CREATE TYPE bctw.onboarding_status AS ENUM (
+    'pending',
+    'granted',
+    'denied'
+);
+
+
+ALTER TYPE bctw.onboarding_status OWNER TO bctw;
+
+--
 -- Name: role_type; Type: TYPE; Schema: bctw; Owner: bctw
 --
 
 CREATE TYPE bctw.role_type AS ENUM (
     'administrator',
+    'manager',
     'owner',
     'observer'
 );
 
 
 ALTER TYPE bctw.role_type OWNER TO bctw;
+
+--
+-- Name: TYPE role_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TYPE bctw.role_type IS 'BCTW user role types. note: owner is deprecated';
+
 
 --
 -- Name: telemetry; Type: TYPE; Schema: bctw; Owner: bctw
@@ -149,16 +189,37 @@ CREATE TYPE bctw.telemetry AS (
 ALTER TYPE bctw.telemetry OWNER TO bctw;
 
 --
+-- Name: TYPE telemetry; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TYPE bctw.telemetry IS 'returned in function that retrieves telemetry data to be displayed in the map. (get_user_telemetry)';
+
+
+--
 -- Name: telemetry_alert_type; Type: TYPE; Schema: bctw; Owner: bctw
 --
 
 CREATE TYPE bctw.telemetry_alert_type AS ENUM (
+    'malfunction',
     'mortality',
+    'missing_data',
     'battery'
 );
 
 
 ALTER TYPE bctw.telemetry_alert_type OWNER TO bctw;
+
+--
+-- Name: TYPE telemetry_alert_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TYPE bctw.telemetry_alert_type IS 'user alert notifications. 
+	malfunction: alert indicating telemetry has not been received from a device for more than 7 days.
+	mortality: telemetry alert from vendor indicating the animal is a potential mortality.
+	battery: alert from vendor indicating the device battery may be low. (net yet implemented).
+	missing_data: deprecated.
+';
+
 
 --
 -- Name: unattached_telemetry; Type: TYPE; Schema: bctw; Owner: bctw
@@ -681,7 +742,7 @@ BEGIN
 	 	 -- use the requestor as the user performing the grant so it can be tracked
 	   rr.requested_by_user_id, 
 	   UNNEST(rr.user_id_list),
-	   -- no longer an array, so make it
+	   -- no longer an array, so convert it to one
 	   jsonb_build_array(rr.critter_permission_list)
 	 );
  END IF;
@@ -689,8 +750,8 @@ BEGIN
  -- expire the request
  UPDATE permission_request
  SET 
-   was_granted = isgrant,
-   was_denied_reason = denycomment,
+ 	 status = CASE WHEN isgrant THEN 'granted'::onboarding_status ELSE 'denied'::onboarding_status END,
+   was_denied_reason = CASE WHEN isgrant THEN NULL ELSE denycomment END,
    valid_to = current_ts
  WHERE request_id = rr.request_id;
 
@@ -794,30 +855,53 @@ COMMENT ON FUNCTION bctw.get_closest_collar_record(collarid uuid, t timestamp wi
 
 
 --
+-- Name: get_code_as_json(integer); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_code_as_json(codeid integer) RETURNS SETOF json
+    LANGUAGE plpgsql
+    AS $$
+BEGIN 
+	RETURN query SELECT row_to_json(t) FROM (
+    	SELECT code_id AS id,
+    	  code_name AS code,
+    		code_description AS description
+    	FROM bctw.code WHERE code.code_id = codeid
+    	AND is_valid(valid_to)
+  ) t;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_code_as_json(codeid integer) OWNER TO bctw;
+
+--
 -- Name: get_code_id(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
 CREATE FUNCTION bctw.get_code_id(codeheader text, description text) RETURNS integer
     LANGUAGE plpgsql
     AS $$
-declare code_id integer;
-begin
-	if description is null
-	  then return null;
-	end if;
+DECLARE code_id integer;
+BEGIN
+	IF description IS NULL
+	  THEN RETURN NULL;
+	END IF;
 
 	code_id := (
-	  select c.code_id from bctw.code c
-	  inner join bctw.code_header ch
+	  SELECT c.code_id FROM bctw.code c
+	  INNER JOIN bctw.code_header ch
 	  ON c.code_header_id = ch.code_header_id
-	  where ch.code_header_name = codeheader
-	  and (c.code_description = description or c.code_name = description)
+	  WHERE lower(ch.code_header_name) = lower(codeheader)
+	  AND is_valid(c.valid_to)
+	  AND (
+	  	lower(c.code_description) = lower(description) or lower(c.code_name) = lower(description)
+		)
 	);
-	if code_id is null then
---	  raise exception 'unable to retrieve valid code from header % and value %', codeheader, description;
-	  return null;
-	end if;
-	return code_id;
+	IF code_id IS NULL THEN
+	  RETURN NULL;
+	END IF;
+	RETURN code_id;
 END;
 $$;
 
@@ -832,30 +916,56 @@ COMMENT ON FUNCTION bctw.get_code_id(codeheader text, description text) IS 'retr
 
 
 --
+-- Name: get_code_id_with_error(text, anyelement); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_code_id_with_error(codeheader text, val anyelement) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE code_id integer;
+BEGIN
+	IF val IS NULL
+	  THEN RETURN NULL;
+	END IF;
+
+	code_id := bctw.get_code_id(codeheader, val);
+
+	IF code_id IS NULL THEN
+	  RAISE EXCEPTION 'unable to determine valid code. Code type "%" and value "%"', codeheader, val;
+	END IF;
+	RETURN code_id;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_code_id_with_error(codeheader text, val anyelement) OWNER TO bctw;
+
+--
+-- Name: FUNCTION get_code_id_with_error(codeheader text, val anyelement); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_code_id_with_error(codeheader text, val anyelement) IS 'retrieve a code records ID (code.code_id) given a .code_header_name and either code_name or code_description. Throws an exception if it cannot be found.';
+
+
+--
 -- Name: get_code_id_with_error(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
 CREATE FUNCTION bctw.get_code_id_with_error(codeheader text, description text) RETURNS integer
     LANGUAGE plpgsql
     AS $$
-declare code_id integer;
-begin
-	if description is null
-	  then return null;
-	end if;
+DECLARE code_id integer;
+BEGIN
+	IF description IS NULL
+	  THEN RETURN NULL;
+	END IF;
+	
+	code_id := bctw.get_code_id(codeheader, description);
 
-	code_id := (
-	  select c.code_id from bctw.code c
-	  inner join bctw.code_header ch
-	  ON c.code_header_id = ch.code_header_id
-	  where ch.code_header_name = codeheader
-	  and (c.code_description = description or c.code_name = description)
-	);
-
-	if code_id is null then
-	  raise exception 'unable to determine valid code. Code type "%" and value "%"', codeheader, description;
-	end if;
-	return code_id;
+	IF code_id IS NULL THEN
+	  RAISE EXCEPTION 'unable to determine valid code. Code type "%" and value "%"', codeheader, description;
+	END IF;
+	RETURN code_id;
 END;
 $$;
 
@@ -906,6 +1016,21 @@ ALTER FUNCTION bctw.get_code_value(codeheader text, description text) OWNER TO b
 
 COMMENT ON FUNCTION bctw.get_code_value(codeheader text, description text) IS 'given a code description, attempts to retrieve the code (code.code_name). returns the original parameter if it does not exist.';
 
+
+--
+-- Name: get_last_device_transmission(uuid); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_last_device_transmission(collarid uuid) RETURNS TABLE(latest_transmission timestamp with time zone)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	RETURN query SELECT date_recorded FROM latest_transmissions WHERE collar_id = collarid;
+end;
+$$;
+
+
+ALTER FUNCTION bctw.get_last_device_transmission(collarid uuid) OWNER TO bctw;
 
 --
 -- Name: get_species_id_with_error(text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -987,7 +1112,8 @@ BEGIN
     (SELECT code_description FROM code WHERE code.code_id = a.sex)::text AS sex,
     (SELECT code_description FROM code WHERE code.code_id = c.device_status)::text AS device_status,
     (SELECT code_description FROM code WHERE code.code_id = a.population_unit)::text AS population_unit,
-    (SELECT code_description FROM code WHERE code.code_id = a.collective_unit)::text AS collective_unit,
+    a.collective_unit::text,
+--    (SELECT code_description FROM code WHERE code.code_id = a.collective_unit)::text AS collective_unit,
     vmv.geom,
     vmv.date_recorded,
     row_number() OVER (ORDER BY 1::integer) AS VENDOR_MERGE_ID,
@@ -1007,7 +1133,8 @@ BEGIN
 	 			'sex', (SELECT code_description FROM code WHERE code.code_id = a.sex),
 	 			'device_status', (SELECT code_description FROM code WHERE code.code_id = c.device_status),
 	 			'population_unit', (SELECT code_description FROM code WHERE code.code_id = a.population_unit),
-	 			'collective_unit', (SELECT code_description FROM code WHERE code.code_id = a.collective_unit),
+--	 			'collective_unit', (SELECT code_description FROM code WHERE code.code_id = a.collective_unit),
+	 			'collective_unit', a.collective_unit::text,
 	 			'date_recorded', vmv.date_recorded,
 	 			'map_colour', (select concat(code_name, ',', code_description_long) from bctw.code where code_id = a.map_colour),
 	 			'capture_date', a.capture_date -- fixme ( should be the oldest capture date for this particular device id assignment)
@@ -1067,6 +1194,30 @@ ALTER FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zo
 COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'what the 2D map and 3D terrain viewer use to display data for animals with attached devices.
 note: because the result of this function is a user defined type - the query column order matters.';
 
+
+--
+-- Name: get_udf(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_udf(username text, udf_type text) RETURNS SETOF jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  userid integer := bctw.get_user_id(username);
+ 	u jsonb;
+BEGIN
+	IF userid IS NULL THEN
+    RAISE exception 'couldn\t find user with username %', username;
+	END IF;
+
+	u := ( SELECT udf FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to));
+	RETURN query SELECT * FROM jsonb_array_elements(u) t WHERE t->>'type' = udf_type;
+
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_udf(username text, udf_type text) OWNER TO bctw;
 
 --
 -- Name: get_unattached_telemetry(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -1195,7 +1346,7 @@ DECLARE
   userid integer := bctw.get_user_id(stridir);
 BEGIN
 	IF userid IS NULL THEN 
-		RAISE EXCEPTION 'could not find user with idir %', stridir;
+		RAISE EXCEPTION 'could not find username %', stridir;
 	END IF;
 	RETURN bctw.get_user_animal_permission(userid, critterid);
 END;
@@ -1383,6 +1534,28 @@ COMMENT ON FUNCTION bctw.get_user_id(stridir text) IS 'provided with an IDIR or 
 
 
 --
+-- Name: get_user_id_with_domain(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_user_id_with_domain(domain_type text, identifier text) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE uid integer;
+BEGIN
+	uid := (
+		CASE 
+			WHEN lower(domain_type) = 'bceid' THEN (SELECT id FROM bctw.USER WHERE bceid = identifier AND is_valid(valid_to))
+			WHEN lower(domain_type) = 'idir' THEN (SELECT id FROM bctw.USER WHERE idir = identifier AND is_valid(valid_to))
+		END
+	);
+RETURN uid;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_user_id_with_domain(domain_type text, identifier text) OWNER TO bctw;
+
+--
 -- Name: get_user_role(text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1480,8 +1653,8 @@ BEGIN
 	END IF;
 
 	user_granting_role := (SELECT role_type FROM bctw_dapi_v1.user_v WHERE id = user_id_granting);
-  IF user_granting_role != 'administrator' THEN 
-  	RAISE EXCEPTION 'you do not have access to grant animal permissions with role % ', user_granting_role;
+    IF user_granting_role != 'administrator' THEN 
+  		RAISE EXCEPTION 'you do not have access to grant animal permissions with role % ', user_granting_role;
 	END IF;
 
 	IF NOT EXISTS (SELECT 1 FROM bctw.user WHERE id = usergranted)
@@ -1495,7 +1668,7 @@ BEGIN
 	  -- check critter exists
 	  IF NOT EXISTS (SELECT 1 FROM bctw.animal WHERE critter_id = uar.critter_id)
 		  THEN RAISE EXCEPTION 'animal with critter_id % does not exist', uar.critter_id;
-		END IF;
+	  END IF;
 		
 		-- do nothing if user already has the same permission to this critter
 		IF EXISTS(
@@ -1505,7 +1678,7 @@ BEGIN
 		 	AND is_valid(valid_to)
 		 	AND permission_type = uar.permission_type
 		)
-		  THEN CONTINUE;
+			THEN CONTINUE;
 		END IF;
 		 
 		-- delete the current record if it exists
@@ -1654,6 +1827,67 @@ NOTE: different than the original as it takes an additional parameter that diffe
 
 
 --
+-- Name: handle_onboarding_request(text, integer, bctw.onboarding_status, bctw.role_type); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  userid integer := bctw.get_user_id(identifier);
+  userrole bctw.role_type;
+	current_ts timestamptz := now();
+BEGIN
+  IF userid IS NULL THEN
+		RAISE EXCEPTION 'user with identifier % does not exist', identifier;
+  END IF;
+ 
+  -- must be an admin
+  userrole := bctw.get_user_role(identifier);
+ 
+  IF userrole IS NULL OR userrole != 'administrator' THEN
+    RAISE EXCEPTION 'you must be an administrator to perform this action';
+  END IF;
+
+  -- check the request id is valid
+  IF NOT EXISTS (SELECT 1 FROM onboarding WHERE onboarding_id = requestid)
+	 THEN RAISE EXCEPTION 'onboarding request ID % does not exist', requestid;
+  END IF ;
+
+  IF NOT EXISTS (SELECT 1 FROM onboarding WHERE onboarding_id = requestid AND is_valid(valid_to) AND onboarding."access" = 'pending')
+	 THEN RAISE EXCEPTION 'onboarding request ID % has already been handled. the result was: %', requestid, (SELECT ACCESS FROM onboarding WHERE onboarding_id = requestid);
+  END IF ;
+ 
+ -- update the onboarding status table
+ UPDATE bctw.onboarding SET
+	 "access" = status,
+	 valid_to = current_ts,
+	 updated_at = current_ts
+ WHERE onboarding_id = requestid;
+
+-- exit if the request was denied
+ IF status = 'denied' THEN
+	RETURN FALSE;
+ END IF;
+
+-- add the new user
+WITH ins AS (
+	INSERT INTO bctw.USER ("domain", username, firstname, lastname, email, phone, created_by_user_id)
+	SELECT "domain", username, firstname, lastname, email, phone, userid  FROM onboarding
+	WHERE onboarding_id = requestid
+	RETURNING id
+)
+    INSERT INTO user_role_xref (user_id, role_id)
+    VALUES ((SELECT id FROM ins), (SELECT role_id FROM user_role_type WHERE role_type = user_role::varchar));
+
+	RETURN TRUE;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type) OWNER TO bctw;
+
+--
 -- Name: is_valid(timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1781,13 +2015,13 @@ CREATE TABLE bctw.animal (
     associated_animal_id character varying(30),
     associated_animal_relationship integer,
     capture_comment character varying(200),
-    capture_date date,
+    capture_date timestamp with time zone,
     capture_latitude double precision,
     capture_longitude double precision,
     capture_utm_easting integer,
     capture_utm_northing integer,
     capture_utm_zone integer,
-    collective_unit integer,
+    collective_unit character varying(60),
     animal_colouration character varying(20),
     ear_tag_left_colour character varying(20),
     ear_tag_right_colour character varying(20),
@@ -1796,7 +2030,7 @@ CREATE TABLE bctw.animal (
     life_stage integer,
     map_colour integer DEFAULT bctw_dapi_v1.get_random_colour_code_id(),
     mortality_comment character varying(200),
-    mortality_date date,
+    mortality_date timestamp with time zone,
     mortality_latitude double precision,
     mortality_longitude double precision,
     mortality_utm_easting integer,
@@ -1808,7 +2042,7 @@ CREATE TABLE bctw.animal (
     recapture boolean,
     region integer,
     release_comment character varying(200),
-    release_date date,
+    release_date timestamp with time zone,
     release_latitude double precision,
     release_longitude double precision,
     release_utm_easting integer,
@@ -1825,11 +2059,19 @@ CREATE TABLE bctw.animal (
     updated_by_user_id integer,
     valid_from timestamp with time zone DEFAULT now(),
     valid_to timestamp with time zone,
-    predator_species character varying(20),
+    pcod_predator_species character varying(20),
     owned_by_user_id integer,
     ear_tag_left_id character varying(20),
     ear_tag_right_id character varying(20),
-    juvenile_at_heel_count integer
+    juvenile_at_heel_count integer,
+    predator_known boolean,
+    captivity_status boolean,
+    mortality_captivity_status boolean,
+    ucod_predator_species character varying(20),
+    pcod_confidence integer,
+    ucod_confidence integer,
+    mortality_report boolean,
+    mortality_investigation integer
 );
 
 
@@ -2195,10 +2437,10 @@ COMMENT ON COLUMN bctw.animal.valid_to IS 'is this record expired? (null) is val
 
 
 --
--- Name: COLUMN animal.predator_species; Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: COLUMN animal.pcod_predator_species; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON COLUMN bctw.animal.predator_species IS 'species of the animal that caused the mortality. see pcod and ucod fields. ';
+COMMENT ON COLUMN bctw.animal.pcod_predator_species IS 'a common english name of the predator species or subspecies associated with the animal''s proximate cause of death';
 
 
 --
@@ -2227,6 +2469,62 @@ COMMENT ON COLUMN bctw.animal.ear_tag_right_id IS 'numeric or alphanumeric ident
 --
 
 COMMENT ON COLUMN bctw.animal.juvenile_at_heel_count IS 'how many juveniles ';
+
+
+--
+-- Name: COLUMN animal.predator_known; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.predator_known IS ' indicating that species (or genus) of a predator that predated an animal is known or unknown.';
+
+
+--
+-- Name: COLUMN animal.captivity_status; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.captivity_status IS 'indicating whether an animal is, or has been, in a captivity program (e.g., maternity pen, conservation breeeding program).';
+
+
+--
+-- Name: COLUMN animal.mortality_captivity_status; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.mortality_captivity_status IS 'indicating the mortality event occurred when animal was occupying wild habitat (i.e, natural range) or in captivity (i.e.,  maternity pen, conservation breeding centre).';
+
+
+--
+-- Name: COLUMN animal.ucod_predator_species; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.ucod_predator_species IS 'a common english name of the predator species or subspecies associated with the animal''s ultimate cause of death';
+
+
+--
+-- Name: COLUMN animal.pcod_confidence; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.pcod_confidence IS 'describes qualitative confidence in the assignment of Proximate Cause of Death of an animal. ';
+
+
+--
+-- Name: COLUMN animal.ucod_confidence; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.ucod_confidence IS 'a code that describes qualitative confidence in the assignment of Ultimate Cause of Death of an animal.';
+
+
+--
+-- Name: COLUMN animal.mortality_report; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.mortality_report IS 'indicating that details of animal''s mortality investigation is recorded in a Wildlife Health Group mortality template.';
+
+
+--
+-- Name: COLUMN animal.mortality_investigation; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.mortality_investigation IS 'a code indicating the method of investigation of the animal mortality.';
 
 
 --
@@ -2259,7 +2557,7 @@ begin
 	  'capture_utm_easting', ar.capture_utm_easting,
 	  'capture_utm_northing', ar.capture_utm_northing,
 	  'capture_utm_zone', ar.capture_utm_zone,
-	  'collective_unit', bctw.get_code_id_with_error('collective_unit', ar.collective_unit), -- todo / fix
+	  'collective_unit', ar.collective_unit,
 	  'animal_colouration', ar.animal_colouration,
 	  'ear_tag_left_id', ar.ear_tag_left_id,
 	  'ear_tag_right_id', ar.ear_tag_right_id,
@@ -2269,7 +2567,7 @@ begin
 	  'juvenile_at_heel', bctw.get_code_id_with_error('juvenile_at_heel', ar.juvenile_at_heel),
 	  'juvenile_at_heel_count', ar.juvenile_at_heel_count,
 	  'life_stage', bctw.get_code_id_with_error('life_stage', ar.life_stage),
-	  -- skip map colour
+	  'map_colour', bctw.get_code_id_with_error('map_colour', ar.map_colour),
 	  'mortality_comment', ar.mortality_comment,
 	  'mortality_date', ar.mortality_date,
 	  'mortality_latitude', ar.mortality_latitude,
@@ -2277,22 +2575,21 @@ begin
 	  'mortality_utm_easting', ar.mortality_utm_easting,
 	  'mortality_utm_northing', ar.mortality_utm_northing,
 	  'mortality_utm_zone', ar.mortality_utm_zone,
-	  'predator_species', bctw.get_species_id_with_error(ar.predator_species),
-	  'proximate_cause_of_death', bctw.get_code_id_with_error('proximate_cause_of_death', ar.proximate_cause_of_death)
+	  'proximate_cause_of_death', bctw.get_code_id_with_error('proximate_cause_of_death', ar.proximate_cause_of_death),
+	  'ultimate_cause_of_death', bctw.get_code_id_with_error('ultimate_cause_of_death', ar.ultimate_cause_of_death)
 	  );
 	 	
 	  ret2 := JSONB_BUILD_OBJECT(
-	  'ultimate_cause_of_death', bctw.get_code_id_with_error('ultimate_cause_of_death', ar.ultimate_cause_of_death),
 	  'population_unit', bctw.get_code_id_with_error('population_unit', ar.population_unit),
 	  'recapture', ar.recapture,
 	  'region', bctw.get_code_id_with_error('region', ar.region),
  	  'release_comment', ar.release_comment,
-      'release_date', ar.release_date,
-      'release_latitude', ar.release_latitude,
-      'release_longitude', ar.release_longitude,
-      'release_utm_easting', ar.release_utm_easting,
-      'release_utm_northing', ar.release_utm_northing,
-      'release_utm_zone', ar.release_utm_zone,
+    'release_date', ar.release_date,
+    'release_latitude', ar.release_latitude,
+    'release_longitude', ar.release_longitude,
+    'release_utm_easting', ar.release_utm_easting,
+    'release_utm_northing', ar.release_utm_northing,
+    'release_utm_zone', ar.release_utm_zone,
 	  'sex', bctw.get_code_id_with_error('sex', ar.sex),
 	  'species', bctw.get_species_id_with_error(ar.species),
 	  'translocation', ar.translocation,
@@ -2300,10 +2597,17 @@ begin
 	  'animal_comment', ar.animal_comment,
 	  'valid_from', ar.valid_from,
 	  'valid_to', ar.valid_to,
-	  'predator_species', ar.predator_species,
-	  'owned_by_user_id', ar.owned_by_user_id
+	  'owned_by_user_id', ar.owned_by_user_id,
+	  'predator_known', ar.predator_known,
+	  'captivity_status', ar.captivity_status,
+	  'mortality_captivity_status', ar.mortality_captivity_status,
+	  'pcod_predator_species', ar.pcod_predator_species,
+	  'ucod_predator_species', ar.ucod_predator_species,
+	  'pcod_confidence', bctw.get_code_id_with_error('cod_confidence'::text, ar.pcod_confidence),
+	  'ucod_confidence', bctw.get_code_id_with_error('cod_confidence', ar.ucod_confidence),
+	  'mortality_report', ar.mortality_report,
+	  'mortality_investigation', bctw.get_code_id_with_error('mortality_investigation', ar.mortality_investigation)
 	);
-
 	-- return animal record, passing in the two jsonb objects concatenated
 	return query select * from jsonb_populate_record(null::bctw.animal, ret1 || ret2);
 END;
@@ -2316,7 +2620,7 @@ ALTER FUNCTION bctw.json_to_animal(animaljson jsonb) OWNER TO bctw;
 -- Name: FUNCTION json_to_animal(animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.json_to_animal(animaljson jsonb) IS 'converts an animal json record, mapping codes to their integer form';
+COMMENT ON FUNCTION bctw.json_to_animal(animaljson jsonb) IS 'converts an animal json record, mapping codes to their integer form. fixme: how to handle ''historical'' records';
 
 
 --
@@ -2341,11 +2645,11 @@ CREATE TABLE bctw.collar (
     fix_interval_rate double precision,
     frequency double precision,
     frequency_unit integer,
-    malfunction_date date,
+    malfunction_date timestamp with time zone,
     activation_comment character varying(200),
     first_activation_month integer,
     first_activation_year integer,
-    retrieval_date date,
+    retrieval_date timestamp with time zone,
     retrieved boolean DEFAULT false,
     satellite_network integer,
     device_comment character varying(200),
@@ -2357,8 +2661,16 @@ CREATE TABLE bctw.collar (
     valid_from timestamp with time zone DEFAULT now(),
     valid_to timestamp with time zone,
     owned_by_user_id integer,
-    offline_date date,
-    offline_type integer
+    offline_date timestamp with time zone,
+    offline_type integer,
+    device_condition integer,
+    retrieval_comment character varying(200),
+    malfunction_comment character varying(200),
+    offline_comment character varying(200),
+    mortality_mode boolean,
+    mortality_period_hr smallint,
+    dropoff_mechanism integer,
+    implant_device_id integer
 );
 
 
@@ -2610,6 +2922,62 @@ COMMENT ON COLUMN bctw.collar.offline_type IS 'TODO - assuming this is a code?';
 
 
 --
+-- Name: COLUMN collar.device_condition; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.device_condition IS 'the condition of the device upon retrieval';
+
+
+--
+-- Name: COLUMN collar.retrieval_comment; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.retrieval_comment IS 'informative comments or notes about retrieval event for this device.';
+
+
+--
+-- Name: COLUMN collar.malfunction_comment; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.malfunction_comment IS 'informative comments or notes about malfunction event for this device.';
+
+
+--
+-- Name: COLUMN collar.offline_comment; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.offline_comment IS 'informative comments or notes about offline event for this device.';
+
+
+--
+-- Name: COLUMN collar.mortality_mode; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.mortality_mode IS 'indicates the device has a mortality sensor.  A device movement sensor detects no movement, after a pre-programmed period of time can change the VHF pulse rate to indicate a change in animal behaviour (e.g., stationary, resting); this can also trigger a GPS device to send notification of a mortlity signal.';
+
+
+--
+-- Name: COLUMN collar.mortality_period_hr; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.mortality_period_hr IS 'the pre-programmed period of time (hours) of no movement detected, after which the device is programmed to trigger a mortality notification signal.';
+
+
+--
+-- Name: COLUMN collar.dropoff_mechanism; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.dropoff_mechanism IS 'a code for the drop-off mechanism for the device (e.g., device released by radio or timer)';
+
+
+--
+-- Name: COLUMN collar.implant_device_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar.implant_device_id IS 'an identifying number or label (e.g. serial number) that the manufacturer of a device has applied to the implant module.';
+
+
+--
 -- Name: json_to_collar(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -2642,18 +3010,27 @@ begin
 	  'fix_interval_rate', cr.fix_interval_rate,
 	  'frequency', cr.frequency,
 	  'frequency_unit', bctw.get_code_id_with_error('frequency_unit', cr.frequency_unit),
---	  'activation_comment', cr.activation_comment, todo:
+	  'activation_comment', cr.activation_comment,
 	  'first_activation_month', cr.first_activation_month,
 	  'first_activation_year', cr.first_activation_year,
 	  'retrieval_date', cr.retrieval_date,
 	  'retrieved', cr.retrieved,
+	  'retrieval_comment', cr.retrieval_comment,
 	  'satellite_network', bctw.get_code_id_with_error('satellite_network', cr.satellite_network),
 	  'device_comment', cr.device_comment,
 	  'activation_status', cr.activation_status,
 	  'valid_from', cr.valid_from,
 	  'valid_to', cr.valid_to,
 	  'offline_date', cr.offline_date,
-	  'offline_type', cr.offline_type
+	  'offline_type', cr.offline_type,
+	  'device_condition', bctw.get_code_id_with_error('device_condition', cr.device_condition),
+	  'malfunction_comment', cr.malfunction_comment,
+	  'offline_comment', cr.offline_comment,
+	  'mortality_mode', cr.mortality_mode,
+	  'mortality_period_hr', cr.mortality_period_hr,
+	  'dropoff_mechanism', bctw.get_code_id_with_error('dropoff_mechanism', cr.dropoff_mechanism),
+	  'implant_device_id', cr.implant_device_id
+	  
 	);
 	-- return it as a collar table row
 	return query select * from jsonb_populate_record(null::bctw.collar, ret);
@@ -2823,6 +3200,135 @@ $$;
 ALTER FUNCTION bctw.link_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validfrom timestamp without time zone, validto timestamp without time zone) OWNER TO bctw;
 
 --
+-- Name: proc_check_for_missing_telemetry(); Type: PROCEDURE; Schema: bctw; Owner: bctw
+--
+
+CREATE PROCEDURE bctw.proc_check_for_missing_telemetry()
+    LANGUAGE plpgsql
+    AS $$
+	-- triggered manually in vendor-merge cronjob as triggers can't exist on materialized views
+	-- this procedure iterates records in the last_transmissions view to determine if there
+	-- are devices that have not transmitted data in >= 7 days. If new data
+	-- has not been received, adds an alert to the telemetry_sensor_alert table
+	DECLARE 
+	 tr record; -- the latest_transmissions record
+	 attached_critterid uuid;
+	 j jsonb;
+    BEGIN
+	 -- only check rows where:
+	 -- a) there is a collar_id - ie. latest_transmissions.collar_id isn't null
+	 -- b) the collar is attached to an animal - ie has a valid record in the animal_collar_assignment table
+	 -- c) the animal status is not mortality
+	 -- d) the device deployment status is set to deployed
+	 -- e) the device 'retrieved' flag is false? - disabled since d) should cover this
+	 FOR tr IN SELECT * FROM bctw.latest_transmissions
+	 	WHERE collar_id IS NOT NULL 
+	 	AND collar_id IN (SELECT ca.collar_id FROM bctw.collar_animal_assignment ca WHERE is_valid(ca.valid_to))
+		LIMIT 5
+
+	 	LOOP
+	 		IF now() - INTERVAL '7 days' <= tr."date_recorded" 
+				 THEN CONTINUE;
+	 		ELSE 
+				-- don't add a new alert if there a matching alert 
+				IF EXISTS (
+					SELECT 1 FROM telemetry_sensor_alert
+					WHERE device_make = tr.device_vendor
+					AND device_id = tr.device_id
+					AND alert_type = 'malfunction'::telemetry_alert_type 
+					AND is_valid(valid_to)
+					-- disabled to prevent excessive alert spam 
+--					AND created_at >= now() - INTERVAL '3 days'
+				) THEN 
+--					RAISE EXCEPTION 'alert exists %', tr.device_id;
+					CONTINUE;
+				END IF;
+			
+				attached_critterid := (
+					SELECT ca.critter_id FROM collar_animal_assignment ca
+					WHERE is_valid(ca.valid_to)
+					AND ca.collar_id = tr.collar_id
+				);
+
+				-- if the animal status is mortality, also skip
+				IF EXISTS (
+					SELECT 1 FROM animal 
+					WHERE is_valid(valid_to)
+					AND critter_id = attached_critterid
+					AND animal_status = bctw.get_code_id('animal_status', 'mortality')
+				) THEN CONTINUE;
+				END IF;
+
+				-- if the device deployment status is anything but 'deployed', also skip
+				IF NOT EXISTS (
+					SELECT 1 FROM collar c
+					WHERE c.collar_id = tr.collar_id
+					AND is_valid(c.valid_to)
+					AND c.device_deployment_status = get_code_id('device_deployment_status', 'deployed')
+				) THEN CONTINUE;
+				END IF;
+
+				-- otherwise, insert the alert
+				INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type)
+				VALUES (tr.device_id, tr.device_vendor, tr.date_recorded, 'malfunction'::telemetry_alert_type);
+			
+				-- update the device_status to 'potential malfunction'
+				-- maybe dont need to do this since the
+				j := jsonb_build_array(
+					JSONB_BUILD_OBJECT('collar_id', tr.collar_id, 'device_status', 'potential mortality')
+					);
+				PERFORM upsert_collar('system', j);
+--				RAISE EXCEPTION 'json %', j;
+
+		END IF;
+	END LOOP;
+	END;
+$$;
+
+
+ALTER PROCEDURE bctw.proc_check_for_missing_telemetry() OWNER TO bctw;
+
+--
+-- Name: proc_update_mortality_status(uuid, uuid); Type: PROCEDURE; Schema: bctw; Owner: bctw
+--
+
+CREATE PROCEDURE bctw.proc_update_mortality_status(collarid uuid, critterid uuid)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN 
+		IF critterid IS NOT NULL AND EXISTS (SELECT 1 FROM animal WHERE critter_id = critterid) THEN 
+		-- update the animal record's status to Potential Mortality, using the generic 'Admin' usr
+			PERFORM upsert_animal('system', jsonb_build_array(
+				JSONB_BUILD_OBJECT(
+					'critter_id', critterid,
+					'animal_status', 'Potential Mortality'
+				)
+				)
+			);
+		END IF;
+	
+		IF collarid IS NOT NULL AND EXISTS (SELECT 1 FROM collar WHERE collar_id = collarid) THEN 
+			PERFORM upsert_collar('system', jsonb_build_array(
+			JSONB_BUILD_OBJECT(
+				'collar_id', collarid,
+				'device_status', 'MORT'
+			))
+		);
+	 END IF;
+END
+$$;
+
+
+ALTER PROCEDURE bctw.proc_update_mortality_status(collarid uuid, critterid uuid) OWNER TO bctw;
+
+--
+-- Name: PROCEDURE proc_update_mortality_status(collarid uuid, critterid uuid); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON PROCEDURE bctw.proc_update_mortality_status(collarid uuid, critterid uuid) IS 'called from mortality alert triggers to update device status to mortality and animal status to potential mortality';
+
+
+--
 -- Name: set_user_role(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -2830,20 +3336,22 @@ CREATE FUNCTION bctw.set_user_role(stridir text, roletype text) RETURNS text
     LANGUAGE plpgsql
     AS $$
 declare
-	roleid uuid;
-	uid integer;
+	roleid uuid := (SELECT urt.role_id FROM bctw.user_role_type urt WHERE urt.role_type = roletype);
+	uid integer := get_user_id(stridir);
 begin
-	if not exists (select 1 from bctw.user u where u.idir = strIdir) 
-	then raise exception 'couldnt find user with IDIR %', strIdir;
-	end if;
+	IF uid IS NULL THEN 
+		RAISE EXCEPTION 'couldnt find user %', strIdir;
+	END IF;
 
-	roleid := (select urt.role_id from bctw.user_role_type urt where urt.role_type = roletype);
-	uid := (select u.id from bctw.user u where u.idir = stridir);
-	
-	insert into bctw.user_role_xref(user_id, role_id)
-	values (uid, roleid)
-	on conflict on constraint user_role_xref_pkey
-	do update set role_id = roleid;
+	IF roleid IS NULL THEN 
+		RAISE EXCEPTION 'invalid user role %', roletype;
+	END IF;
+
+	IF EXISTS (SELECT 1 FROM user_role_xref WHERE user_id = uid) THEN
+		UPDATE user_role_xref SET role_id = roleid WHERE user_id = uid;
+	ELSE 
+		INSERT INTO bctw.user_role_xref(user_id, role_id) VALUES (uid, roleid);
+	END IF;
 
 return roleid;
 end;
@@ -2856,8 +3364,66 @@ ALTER FUNCTION bctw.set_user_role(stridir text, roletype text) OWNER TO bctw;
 -- Name: FUNCTION set_user_role(stridir text, roletype text); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.set_user_role(stridir text, roletype text) IS 'sets a user role. note that a user can have more than role type. ex. can be an administrator and owner at the same time.';
+COMMENT ON FUNCTION bctw.set_user_role(stridir text, roletype text) IS 'sets a user role. currently replaces the old user role if the user already has one. not exposed to api';
 
+
+--
+-- Name: submit_onboarding_request(json); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.submit_onboarding_request(userjson json) RETURNS SETOF json
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ur record;
+  role_t bctw.role_type;
+  uid TEXT;
+BEGIN
+ 
+	-- cannot submit a new request with a status other than pending
+  IF (userjson->>'access')::bctw.onboarding_status != 'pending' THEN
+  	RAISE EXCEPTION 'onboarding status must be pending for new users';
+  END IF;
+ 
+  -- will throw if the requested role type is not valid
+  role_t := (userjson->>'role_type')::bctw.role_type;
+  uid := (userjson->>'username');
+  
+  -- todo: update this when idir/bceid are removed from user table
+  IF EXISTS (SELECT 1 FROM bctw.USER WHERE bceid = uid OR idir = uid) THEN 
+  	RAISE EXCEPTION 'a user with username % already exists ', uid;
+  END IF; 
+ 
+ 	-- denied requests can be resubmitted. leave it up to the frontend to determine how/when it can be resubmitted
+ 	-- todo: also check email?
+  IF EXISTS (SELECT 1 FROM onboarding o WHERE o.username = uid AND o."access" = 'pending') THEN 
+    RAISE EXCEPTION 'this request already exists for % username %. Status: %', userjson->>'domain', uid, (SELECT "access" FROM onboarding WHERE username = uid);
+  END IF;
+
+  ur := json_populate_record(NULL::bctw.onboarding, userjson);
+ 
+  RETURN query
+  WITH ins AS (
+	INSERT INTO bctw.onboarding (domain, username, firstname, lastname, access, email, phone, role_type, reason, valid_from)
+		VALUES (
+			ur.domain,
+			ur.username,
+			ur.firstname,
+			ur.lastname,
+			ur.access,
+			ur.email,
+			ur.phone,
+			role_t,
+			ur.reason,
+			now()
+		) RETURNING *
+	) SELECT row_to_json(t) FROM (SELECT * FROM ins) t; 
+	
+END;
+$$;
+
+
+ALTER FUNCTION bctw.submit_onboarding_request(userjson json) OWNER TO bctw;
 
 --
 -- Name: submit_permission_request(text, text[], jsonb, text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -2942,73 +3508,59 @@ COMMENT ON FUNCTION bctw.submit_permission_request(stridir text, user_emails tex
 CREATE FUNCTION bctw.trg_process_ats_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-	declare 
+	-- triggered after insert of ats_collar_data, trigger name ats_insert_trg
+	-- trigger occurs only when ats_collar_data.mortality is true
+	DECLARE 
 	 new_record record;
-	 existing_record record;
-	 alert_t telemetry_alert_type;
-    begin
-	    
-	    --DISABLED
-	    return null;
-	   
-	    -- the ats_collar_data record
-	    select n.*
-	    from new_table n
-		order by "date" desc
-		limit 1
-		into new_record;
+	 existing_collar_id uuid;
+	 attached_critter_id uuid;
+   devicevendor varchar := 'ATS';
+    BEGIN
+	  -- the ats_collar_data record
+	  SELECT * FROM new_table INTO new_record;
 	
-		alert_t := (
-		  case 
-		    when new_record.lowbatt then 'battery'
-		    when new_record.mortality then 'mortality'
-		  end
+		-- determine if there is already an existing alert for this device
+		IF EXISTS (
+			SELECT 1 FROM telemetry_sensor_alert tsa
+			WHERE tsa.device_make = devicevendor
+			AND tsa.device_id = new_record.collarserialnumber
+			AND tsa.alert_type = 'mortality'::telemetry_alert_type 
+			AND is_valid(tsa.valid_to)
+		) THEN 
+--			RAISE EXCEPTION 'theres already an alert!';
+			RETURN NULL;
+		END IF;
+
+		-- get the existing device record
+		existing_collar_id := (
+			SELECT collar_id FROM collar 
+			WHERE device_id = new_record.collarserialnumber 
+			AND is_valid(valid_to) 
+			AND device_make = get_code_id('device_make', devicevendor)
+		);
+
+		-- if the device doesn't exist in the collar table, no point in making an alert
+		IF existing_collar_id IS NULL THEN
+			RETURN NULL;
+		END IF;
+
+		-- insert the telemetry alert
+		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type)
+		VALUES (new_record.collarserialnumber, devicevendor, new_record."date", 'mortality'::telemetry_alert_type);
+
+		-- find the animal attached to this collar, if it exists
+		attached_critter_id = (
+			SELECT critter_id 
+			FROM collar_animal_assignment 
+			WHERE is_valid(valid_to)
+			AND collar_id = existing_collar_id
 		);
 	
-		if alert_t is null then
-			return null;
---			raise exception 'cant determine alert_type: mort: % batt: %',  new_record.mortality, new_record.lowbatt;
-		end if;
-	    
-		-- check the existing record to see if either flag does not match the new record
-		select c.*
-		from bctw.collar c
-		where c.device_id = new_record.collarserialnumber
-		and c.device_make = 'ATS'
-		and bctw.is_valid(c.valid_to)
-		and (
-			c.sensor_mortality::bool <> new_record.mortality::bool
-			or c.sensor_battery::bool <> new_record.lowbatt::bool
-		)
-		into existing_record;
-	
-		if existing_record is null
-		then return null;
-		end if;
-	
---		if existing_record is null then
---		raise exception 'null existing record mort: % batt: %',  new_record.mortality, new_record.lowbatt;
---		end if;
-	
-		insert into bctw.telemetry_sensor_alert
-		(
-			collar_id, device_id, device_make, alert_type, valid_from
-		)
-		values (
-			existing_record.collar_id, existing_record.device_id, 'ATS', alert_t, new_record."date"
-		);
-		
-		-- todo update collar_status???
-		perform bctw.update_collar('jcraven', jsonb_build_array(
-			JSONB_BUILD_OBJECT(
-				'collar_id', existing_record.collar_id,
-				'sensor_mortality', new_record.mortality,
-				'sensor_battery', new_record.lowbatt)
-			)
-		);
-	   
-        RETURN NULL; 
-        -- result is ignored since this is an AFTER trigger
+		-- update the mortality status for the device/animal
+		CALL proc_update_mortality_status(existing_collar_id, attached_critter_id);
+
+		RETURN NULL; 
+
     END;
 $$;
 
@@ -3029,58 +3581,45 @@ COMMENT ON FUNCTION bctw.trg_process_ats_insert() IS 'triggered on set of record
 CREATE FUNCTION bctw.trg_process_lotek_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+	-- triggered from telemetry_sensor_alert -> lotek_alert_trg 
 	-- Lotek alerts are a separate API, they are inserted directly to the telemetry_sensor_alert table.
-	declare 
+	-- Unlike other vendors, this trigger handler occurs when alerts are inserted into the alert table
+	-- This trigger only occurs after inserts with device_make 'Lotek'
+	-- This trigger only updates the mortality status for the attached animal / device
+	-- fixme: need to check/prevent multiple alerts being added to alert table in the api cronjob
+	DECLARE 
 	new_record record;
 	collarid uuid;
 	critterid uuid;
-    begin
-	    -- assign the record inserted to the alert table
-	    select n.*
-	    from new_table n
-	    where n.device_make = 'Lotek'
-		into new_record;
+    BEGIN
+	    -- get the alert record, specifying Lotek as the device vendor
+	    SELECT * FROM new_table
+		  INTO new_record;
 	
-		if new_record is null then return null;	end if;
+			IF new_record IS NULL THEN 
+				RETURN NULL;
+			END IF;
 	    
-		collarid := (
-			select c.collar_id from bctw.collar c
-			where c.device_id = new_record.device_id
-			and (select code_description from code where code_id = c.device_make) = 'Lotek'
-			and bctw.is_valid(c.valid_to)
-		);
-	
-		if collarid is null then return null; end if;
+			collarid := (
+				SELECT collar_id FROM collar
+				WHERE device_id = new_record.device_id
+				AND is_valid(valid_to)
+				AND device_make = get_code_id('device_make', 'Lotek')
+			);
+
+			IF collarid IS NULL THEN 
+				RETURN NULL;
+			END IF;
 		
-		-- update the collar record's device status to Mortality
-		perform bctw.update_collar('Admin', jsonb_build_array(
-			JSONB_BUILD_OBJECT(
-				'collar_id', collarid,
-				'device_status', 'Mortality'
-			))
-		);
+			critterid := (
+				SELECT critter_id FROM collar_animal_assignment 
+				WHERE is_valid(valid_to) AND collar_id = collarid
+			);
 		
-		critterid := (
-			select animal_id from collar_animal_assignment caa
-			where is_valid(caa.valid_to) 
-			and caa.collar_id = collarid
-		);
-	
-		if critterid is null then 
-		  raise exception 'cannot find matching critter for collar %', collarid;
-		  return null; 
-		end if;
-		
-		-- update the animal record's status to Potential Mortality
-		perform bctw.update_animal('Admin', jsonb_build_array(
-			JSONB_BUILD_OBJECT(
-				'critter_id', critterid,
-				'animal_status', 'Potential Mortality'
-			))
-		);
-	   
-        RETURN NULL; 
-        -- result is ignored since this is an AFTER trigger
+			CALL proc_update_mortality_status(collarid, critterid);
+
+			-- result is ignored since this is an AFTER trigger
+			RETURN NULL; 
     END;
 $$;
 
@@ -3093,6 +3632,107 @@ ALTER FUNCTION bctw.trg_process_lotek_insert() OWNER TO bctw;
 
 COMMENT ON FUNCTION bctw.trg_process_lotek_insert() IS 'triggered on the insert of a Lotek user alert to the telemetry_sensor_alert alert table, this function updates collar and critter metadata if the alert is determined to be valid.';
 
+
+--
+-- Name: trg_process_new_user(); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.trg_process_new_user() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE  
+	 new_record record;
+	BEGIN 
+	   
+	-- the new user as a record
+	SELECT n.* FROM new_table n INTO new_record;
+
+	IF new_record."domain" = 'idir' THEN 
+		UPDATE bctw.USER SET idir = new_record.username
+		WHERE id = new_record.id;
+	ELSIF new_record."domain" = 'bceid' THEN 
+		UPDATE bctw.USER SET bceid = new_record.username
+		WHERE id = new_record.id;
+	END IF;
+	
+	RETURN NULL; 
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.trg_process_new_user() OWNER TO bctw;
+
+--
+-- Name: FUNCTION trg_process_new_user(); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.trg_process_new_user() IS 'when new rows are inserted to the user table, update the idir/bceid columns if not present';
+
+
+--
+-- Name: trg_process_vectronic_insert(); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.trg_process_vectronic_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+-- trigger name vectronics_collar_data -> vectronic_alert_trg
+-- trigger only occurs when the idmortalitystatus is 1 (a mortality is detected)
+	DECLARE 
+	 new_record record;
+	 existing_collar_id uuid;
+	 attached_critter_id uuid;
+	 devicevendor varchar := 'Vectronic';
+    BEGIN
+	  -- the vectronic_collar_data record with mortality
+	  SELECT * FROM new_table INTO new_record;
+	
+		-- determine if there is already an existing alert for this device
+		IF EXISTS (
+			SELECT 1 FROM telemetry_sensor_alert tsa
+			WHERE tsa.device_make = devicevendor
+			AND tsa.device_id = new_record.idcollar
+			AND is_valid(tsa.valid_to)
+		) THEN 
+--			RAISE EXCEPTION 'theres already an alert!';
+			RETURN NULL;
+		END IF;
+
+		-- get the existing device record
+		existing_collar_id := (
+			SELECT collar_id FROM collar 
+			WHERE device_id = new_record.idcollar 
+			-- fixme: is_valid RETURNING MORE than one row??
+			AND valid_to IS NULL 
+			AND device_make = get_code_id('device_make', devicevendor)
+		);
+	
+		-- if the device doesn't exist in the collar table, no point in making an alert
+		IF existing_collar_id IS NULL THEN
+			RETURN NULL;
+		END IF;
+
+		-- insert the telemetry alert
+		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type)
+		VALUES (new_record.idcollar, devicevendor, new_record.acquisitiontime, 'mortality'::telemetry_alert_type);
+
+		-- find the animal attached to this collar, if it exists
+		attached_critter_id = (
+			SELECT critter_id 
+			FROM collar_animal_assignment 
+			WHERE is_valid(valid_to)
+			AND collar_id = existing_collar_id
+		);
+	
+		-- update the mortality status for the device/animal
+		CALL proc_update_mortality_status(existing_collar_id, attached_critter_id);
+
+		RETURN NULL; 
+    END;
+$$;
+
+
+ALTER FUNCTION bctw.trg_process_vectronic_insert() OWNER TO bctw;
 
 --
 -- Name: trg_update_animal_retroactively(); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -3239,136 +3879,6 @@ $$;
 ALTER FUNCTION bctw.unlink_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validto timestamp with time zone) OWNER TO bctw;
 
 --
--- Name: update_animal(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE FUNCTION bctw.update_animal(stridir text, animaljson jsonb) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  userid integer := bctw.get_user_id(stridir);
-  j json;
-  ar record;
-  existing_critters bctw_dapi_v1.animal_historic_v[];
-  critterid uuid;
-  ids uuid[];
-  i integer := 0;
-  current_ts timestamp without time zone;
-BEGIN
-  IF userid IS NULL THEN
-    RAISE exception 'user with idir % does not exist', stridir;
-  END IF;
- 
-  FOR j IN SELECT jsonb_array_elements(animaljson)
-    LOOP
-      i := i + 1;
-      BEGIN
-	   ar := jsonb_populate_record(NULL::bctw_dapi_v1.animal_historic_v, j::jsonb);
-	   critterid := (select critter_id from animal where critter_id = ar.critter_id);
-	   -- consider this an update if the animal_id AND wlh_id match
-	   if critterid is null then
-	   	 raise exception 'critter with ID % not found', critterid;
-	   end if;
-	  existing_critters := array_append(existing_critters, ar);
-	 end;
-  END LOOP;
-   
-  current_ts = now();
- 
-	 foreach ar in array existing_critters loop
-	 	ids := array_append(ids, ar.critter_id);	 
-	 	-- expire the existing critter record
-	    with existing as (
-	    	UPDATE bctw.animal
-	    	SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
-	    	where bctw.is_valid(valid_to)
-	    	and animal_id = ar.animal_id
-	    	and wlh_id = ar.wlh_id
-	    	returning *
-	    )
-		INSERT INTO bctw.animal
-		SELECT 
-			ar.critter_id,
-			crypto.gen_random_uuid(), -- a new transaction_id
-			coalesce(ar.animal_id, (SELECT animal_id FROM existing)),
-			coalesce(bctw.get_code_id('animal_status', ar.animal_status), (SELECT animal_status FROM existing)),
-			coalesce(ar.associated_animal_id, (SELECT associated_animal_id FROM existing)),
-			coalesce(ar.associated_animal_relationship, (SELECT associated_animal_relationship FROM existing)),
-			coalesce(ar.capture_comment, (SELECT capture_comment FROM existing)),
-		    coalesce(ar.capture_date, (SELECT capture_date FROM existing)),
-		    coalesce(ar.capture_latitude, (SELECT capture_latitude FROM existing)),
-	        coalesce(ar.capture_longitude,  (SELECT capture_longitude FROM existing)),
-		    coalesce(ar.capture_utm_easting, (SELECT capture_utm_easting FROM existing)),
-		    coalesce(ar.capture_utm_northing, (SELECT capture_utm_northing FROM existing)),
-		    coalesce(ar.capture_utm_zone, ( SELECT capture_utm_zone FROM existing)),
-		    coalesce(bctw.get_code_id('collective_unit', ar.collective_unit), (SELECT collective_unit FROM existing)),
-		    coalesce(ar.animal_colouration, ( SELECT animal_colouration FROM existing)),
-			coalesce(ar.ear_tag_left_id, (SELECT ear_tag_left_id FROM existing)),
-			coalesce(ar.ear_tag_right_id, (SELECT ear_tag_right_id FROM existing)),
-			coalesce(ar.ear_tag_left_colour, (SELECT ear_tag_left_colour FROM existing)),
-			coalesce(ar.ear_tag_right_colour, (SELECT ear_tag_right_colour FROM existing)),
-		    coalesce(ar.estimated_age, (SELECT estimated_age FROM existing)),
-			coalesce(bctw.get_code_id('juvenile_at_heel', ar.juvenile_at_heel), (SELECT juvenile_at_heel FROM existing)),
-			coalesce(ar.juvenile_at_heel_count, (SELECT juvenile_at_heel_count FROM existing)),
-		    coalesce(bctw.get_code_id('life_stage', ar.life_stage), (SELECT life_stage FROM existing)),
-		    (select map_colour from existing), --  never gets updated
-		    coalesce(ar.mortality_comment, (SELECT mortality_comment FROM existing)),
-		    coalesce(ar.mortality_date, (SELECT mortality_date FROM existing)),
-	   	    coalesce(ar.mortality_latitude, (SELECT mortality_latitude FROM existing)),
-		    coalesce(ar.mortality_longitude, (SELECT mortality_longitude FROM existing)),
-		    coalesce(ar.mortality_utm_easting, (SELECT mortality_utm_easting FROM existing)),
-		    coalesce(ar.mortality_utm_northing, (SELECT mortality_utm_northing FROM existing)),
-		    coalesce(ar.mortality_utm_zone, (SELECT mortality_utm_zone FROM existing)),
-			-- todo: PREDATOR Species
-		    coalesce(bctw.get_code_id('proximate_cause_of_death', ar.proximate_cause_of_death), (SELECT proximate_cause_of_death FROM existing)),
-		    coalesce(bctw.get_code_id('proximate_cause_of_death', ar.ultimate_cause_of_death), (SELECT ultimate_cause_of_death FROM existing)),
-		    coalesce(bctw.get_code_id('population_unit', ar.population_unit), (SELECT population_unit FROM existing)),
-		    coalesce(ar.recapture, (SELECT recapture FROM existing)),
-		    coalesce(bctw.get_code_id('region', ar.region), (SELECT region FROM existing)),
-		    coalesce(ar.release_comment, (SELECT release_comment FROM existing)),
-		    coalesce(ar.release_date, (SELECT release_date FROM existing)),
-		    coalesce(ar.release_latitude, (SELECT release_latitude FROM existing)),
-		    coalesce(ar.release_longitude, (SELECT release_longitude FROM existing)),
-		    coalesce(ar.release_utm_easting, (SELECT release_utm_easting FROM existing)),
-		    coalesce(ar.release_utm_northing, (SELECT release_utm_northing FROM existing)),
-		    coalesce(ar.release_utm_zone, (SELECT release_utm_zone FROM existing)),
-		    coalesce(bctw.get_code_id('sex', ar.sex), (SELECT sex FROM existing)),
-		    coalesce((select s.species_id from species s where s.scomname = ar.species), (SELECT species FROM existing)),
-		    coalesce(ar.translocation, (SELECT translocation FROM existing)),
-		    coalesce(ar.wlh_id, (SELECT wlh_id FROM existing)),
-		    coalesce(ar.animal_comment, (SELECT animal_comment FROM existing)),
-		    current_ts,
-		    userid,
-		    current_ts,
-		    userid,
-		    coalesce(ar.valid_from, current_ts),
-		    coalesce(ar.valid_to, null);
-	   end loop;
- 
-  RETURN query
-  SELECT
-    json_agg(t)
-  FROM (
-    SELECT * FROM bctw_dapi_v1.animal_v
-    WHERE critter_id = ANY (ids)
-  ) t;
-END;
-
-$$;
-
-
-ALTER FUNCTION bctw.update_animal(stridir text, animaljson jsonb) OWNER TO bctw;
-
---
--- Name: FUNCTION update_animal(stridir text, animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.update_animal(stridir text, animaljson jsonb) IS 'not currently exposed to API. used in triggers to update animal metadata
-why is this needed??
-todo: since not specifying columns in insert, order needs to match';
-
-
---
 -- Name: update_attachment_data_life(text, uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -3449,106 +3959,6 @@ $$;
 ALTER FUNCTION bctw.update_attachment_data_life(stridir text, assignmentid uuid, data_life_start timestamp with time zone, data_life_end timestamp with time zone) OWNER TO bctw;
 
 --
--- Name: update_collar(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE FUNCTION bctw.update_collar(stridir text, collarjson jsonb) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  userid integer;
-  j json;
-  cr record;
-  existing_collars bctw_dapi_v1.collar_historic_v[];
-  crid uuid;
-  i integer := 0;
-  current_ts timestamp without time zone;
-BEGIN
-  userid = bctw.get_user_id (stridir);
-  IF userid IS NULL THEN
-    RAISE exception 'user with idir % does not exist', stridir;
-  END IF;
- 
-  -- iterate the json rows, creating collar records for each one and inserting any errors to the temp table
-  FOR j IN SELECT jsonb_array_elements(collarjson)
-    LOOP
-      i := i + 1;
-      BEGIN
-	    cr := jsonb_populate_record(NULL::bctw_dapi_v1.collar_historic_v, j::jsonb);
-	   	crid := (select collar_id from collar where collar_id = cr.collar_id);
-        IF crid IS NULL then
-          raise exception 'device with collar ID % does not exist', cr.collar_id;
-        END IF;
-		existing_collars := array_append(existing_collars, cr);
-        END;
-    END LOOP;
-   
-  current_ts = now();
-    foreach cr in array existing_collars loop
-	  -- expire the current collar record
-	  with existing as (
-		  UPDATE bctw.collar
-		  SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
-		  where bctw.is_valid(valid_to) 
-		  and collar_id = cr.collar_id
-	      returning *
-	  )
-	  INSERT INTO bctw.collar SELECT 
-		cr.collar_id,
-		crypto.gen_random_uuid(), -- a new transaction_id
-		coalesce(cr.camera_device_id, (SELECT camera_device_id FROM existing)),
-		coalesce(cr.device_id, (SELECT device_id FROM existing)),
-		coalesce(bctw.get_code_id('device_deployment_status', cr.device_deployment_status), (SELECT device_deployment_status FROM existing)),
-		coalesce(bctw.get_code_id('device_make', cr.device_make), (SELECT device_make FROM existing)),
-		coalesce(bctw.get_code_id('device_malfunction_type', cr.device_malfunction_type), (SELECT device_malfunction_type FROM existing)),
-		coalesce(cr.device_model, (SELECT device_model FROM existing)),
-		coalesce(bctw.get_code_id('device_status', cr.device_status), (SELECT device_status FROM existing)),
-		coalesce(bctw.get_code_id('device_type', cr.device_type), (SELECT device_type FROM existing)),
-		coalesce(cr.dropoff_device_id, (SELECT dropoff_device_id FROM existing)),
-		coalesce(cr.dropoff_frequency, (SELECT dropoff_frequency FROM existing)),
-		coalesce(bctw.get_code_id('frequency_unit', cr.dropoff_frequency_unit), (SELECT dropoff_frequency_unit FROM existing)),
-		coalesce(cr.fix_rate, (SELECT fix_rate FROM existing)),
-		coalesce(cr.fix_success_rate, (SELECT fix_success_rate FROM existing)),
-		coalesce(cr.frequency, (SELECT frequency FROM existing)),
-		coalesce(bctw.get_code_id('frequency_unit', cr.frequency_unit), (SELECT frequency_unit FROM existing)),
-		coalesce(cr.malfunction_date, (SELECT malfunction_date FROM existing)),
-		coalesce(cr.purchase_comment, (SELECT purchase_comment FROM existing)),
-		coalesce(cr.purchase_month, (SELECT purchase_month FROM existing)),
-		coalesce(cr.purchase_date, (SELECT purchase_date FROM existing)),
-		coalesce(cr.purchase_year, (SELECT purchase_year FROM existing)),
-		coalesce(cr.retrieval_date, (SELECT retrieval_date FROM existing)),
-		coalesce(cr.retrieved, (SELECT retrieved FROM existing)),
-		coalesce(bctw.get_code_id('satellite_network', cr.satellite_network), (SELECT satellite_network FROM existing)),
-		coalesce(cr.device_comment, (SELECT device_comment FROM existing)),
-		coalesce(cr.vendor_activation_status, (SELECT vendor_activation_status FROM existing)),
-	    current_ts,
-		userid,
-		current_ts,
-		userid,
-		coalesce(cr.valid_from, current_ts),
-		coalesce(cr.valid_to, null);
-	  end loop;
-
-	return query select json_agg(t) from (
-		select * from bctw.collar
-    	where collar_id in (select collar_id from unnest(existing_collars))
-    	and valid_to is null
-    ) t;
-END;
-
-$$;
-
-
-ALTER FUNCTION bctw.update_collar(stridir text, collarjson jsonb) OWNER TO bctw;
-
---
--- Name: FUNCTION update_collar(stridir text, collarjson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.update_collar(stridir text, collarjson jsonb) IS 'not currently exposed to API. used in triggers to update collar metadata when events are received from vendors. ex. mortality';
-
-
---
 -- Name: update_user_telemetry_alert(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -3615,21 +4025,101 @@ CREATE FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) RETURNS SETOF
     AS $$
 DECLARE
   userid integer := bctw.get_user_id(stridir);
-  j json; 					 -- current element of the animaljson loop
-  ar record; 				 -- the animal json converted to an animal table row
-  er record;				 -- the existing animal row
-  existing_critters animal[];-- animal records to be updated
-  new_critters animal[]; 	 -- animal records to be added
-  ids uuid[]; 				 -- aggregated critter_ids of the animals to be added/updated
-  i integer := 0; 			 -- current index of the animaljson loop
-  current_ts timestamp WITHOUT time ZONE;
-  cur_permission user_permission;
-
+  current_ts timestamptz := now();
+  j jsonb; 								-- the current json record
+  i integer := 0;					-- the loop index variable
+  existing_critter jsonb; -- existing animal record as json
+  ar record; 							-- animal table record created from merging the existing/new json
+  critters animal[]; 			-- new animal records to be inserted
+  ids uuid[]; 						-- stores the critter ids added
+  new_props_json jsonb; 	-- json object created to add new properties
 BEGIN
-  IF userid IS NULL THEN
-    RAISE EXCEPTION 'user with idir % does not exist', stridir;
+	IF userid IS NULL THEN
+    RAISE exception 'user with idir % does not exist', stridir;
   END IF;
  
+  FOR j IN SELECT jsonb_array_elements(animaljson) LOOP
+     i := i + 1;
+     BEGIN
+	     -- generate history properties for the record
+	     new_props_json := jsonb_build_object(
+			 'updated_at', current_ts,
+			 'updated_by', userid,
+			 'valid_from', (SELECT (SELECT CASE WHEN j ? 'valid_from' THEN j->>'valid_from' ELSE current_ts::text END)::timestamptz),
+			 'valid_to', (SELECT (SELECT CASE WHEN j ? 'valid_to' THEN j->>'valid_to' ELSE NULL END)::timestamptz)
+	     );
+		 -- merge the json objects, passing the new object as the second parameter preserve the updated/new column values
+	     j := (SELECT j || new_props_json);
+			 -- find the existing critter as json
+			 existing_critter := CASE WHEN NOT EXISTS (SELECT 1 FROM animal WHERE critter_id = (j->>'critter_id')::uuid) THEN
+				-- if this animal doesn't exist, generate a new critter_id and map colour for it
+				 j || jsonb_build_object(
+				 		'critter_id', crypto.gen_random_uuid(),
+				 		-- while not using code again...want the map colour to be the code_value/desc
+				 		'map_colour', (SELECT code_name FROM code WHERE code_id = bctw_dapi_v1.get_random_colour_code_id() AND is_valid(valid_to)),
+				 		'owned_by_user_id', userid,
+				 		'created_by_user_id', userid,
+				 		'created_at', current_ts
+				 )
+				-- otherwise create a json row from the existing critter using the its record in the animal view
+				ELSE (
+					SELECT row_to_json(t)::jsonb FROM (
+-- 						using the view version of the animal until frontend passes the code_id for codes. so the code props will be in their text/description format
+--						SELECT * FROM animal WHERE critter_id = (j->>'critter_id')::uuid AND is_valid(valid_to)
+						SELECT * FROM animal_v WHERE critter_id = (j->>'critter_id')::uuid AND valid_to IS NULL -- is_valid(valid_to)
+					) t)
+			END;
+			 -- merge the new changes into the existing json record
+--			 todo until frontend passes code_id for codes, call json_to_animal to convert the existing animal props from the merged json object to the int values for codes
+--			 critters := array_append(critters, jsonb_populate_record(NULL::bctw.animal, (existing_critter || j)));
+			 critters := array_append(critters,  json_to_animal(existing_critter || j));
+		 END;
+  END LOOP;
+ 
+  FOREACH ar IN ARRAY critters LOOP
+
+  		 IF NOT EXISTS (SELECT 1 from animal WHERE critter_id = ar.critter_id) THEN
+  		 -- grant 'manager' permission for the new critter to this user
+		 INSERT INTO bctw.user_animal_assignment (user_id, critter_id, created_by_user_id, permission_type)
+			 VALUES (userid, ar.critter_id, userid, 'manager'::user_permission);
+		 END IF;
+
+		 ids := array_append(ids, ar.critter_id);
+
+		-- expire the existing critter record
+		UPDATE bctw.animal
+			SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
+			WHERE bctw.is_valid(valid_to)
+			AND critter_id = ar.critter_id;
+
+		-- finally, insert the new record
+	 	INSERT INTO bctw.animal SELECT ar.*;
+
+ END LOOP;
+ RETURN query SELECT json_strip_nulls(
+   (SELECT json_agg(t) FROM (
+		SELECT * FROM bctw.animal_v
+		WHERE critter_id = ANY (ids)
+		AND (valid_to > now() OR valid_to IS NULL)
+  ) t));
+END;
+$$;
+
+
+ALTER FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) OWNER TO bctw;
+
+--
+-- Name: upsert_animal_bulk(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) RETURNS SETOF json
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  j json; 					 -- current element of the animaljson loop
+  i integer := 0; 			 -- current index of the animaljson loop
+  ar record; 				 -- the animal json converted to an animal table row
+BEGIN
   CREATE TEMPORARY TABLE IF NOT EXISTS errors (
     rownum integer,
     error text,
@@ -3640,19 +4130,7 @@ BEGIN
   FOR j IN SELECT jsonb_array_elements(animaljson) LOOP
       i := i + 1;
       BEGIN
-	   		ar := json_to_animal(j::jsonb);
-	   		
-	   		-- consider this an update if the animal_id AND wlh_id match
-	   		IF EXISTS (SELECT 1 FROM bctw.animal WHERE animal_id = ar.animal_id AND wlh_id = ar.wlh_id OR critter_id = ar.critter_id) THEN
-	   		  existing_critters := array_append(existing_critters, ar);
-	   		
-	   		-- if the user supplied a critter_id but a corresponding record is missing from the animal table
-	  	  ELSE IF j->>'critter_id' IS NOT NULL THEN 
-	     		RAISE EXCEPTION 'critter_id was supplied for an animal that does not exist';
-	   		ELSE new_critters := array_append(new_critters, ar);
-	   	  END IF;
-	  		END IF;
-	  
+	    ar := json_to_animal(j::jsonb);
         EXCEPTION
         WHEN sqlstate '22007' THEN -- an invalid date was provided
           INSERT INTO errors
@@ -3670,167 +4148,19 @@ BEGIN
 	END IF;
   DROP TABLE errors;
  
-  current_ts = now();
- 
--- create new animals 
-WITH ins AS (
-	INSERT INTO bctw.animal SELECT
-    crypto.gen_random_uuid(), -- critter_id
-    critter_transaction_id,
-    animal_id,
-    animal_status,
-    associated_animal_id,
-    associated_animal_relationship,
-    capture_comment, capture_date, capture_latitude, capture_longitude, capture_utm_easting, capture_utm_northing, capture_utm_zone,
-	collective_unit,
-	animal_colouration,
-	ear_tag_left_colour, ear_tag_right_colour,
-    estimated_age,
-    juvenile_at_heel,
-    life_stage,
-    bctw_dapi_v1.get_random_colour_code_id(), -- generate a map colour
-    mortality_comment, mortality_date, mortality_latitude, mortality_longitude, mortality_utm_easting, mortality_utm_northing, mortality_utm_zone,
-    proximate_cause_of_death, ultimate_cause_of_death,
-    population_unit,
-    recapture,
-    region,
-    release_comment, release_date, release_latitude, release_longitude, release_utm_easting, release_utm_northing, release_utm_zone,
-	sex,
-	species,
-    translocation,
-    wlh_id, animal_comment,
-    current_ts, userid, current_ts, userid,
-    COALESCE(valid_from, current_ts),
-    COALESCE(valid_to, NULL),
-    predator_species,
-    userid, -- owned_by_user_id: todo: can this be updated?
-    ear_tag_left_id, ear_tag_right_id,
-    juvenile_at_heel_count
-  FROM UNNEST(new_critters)
-  RETURNING critter_id
-)
-SELECT array_agg(critter_id) INTO ids FROM ins;
-
--- grant 'manager' permission for the new critter to this user
-INSERT INTO bctw.user_animal_assignment (user_id, critter_id, created_by_user_id, permission_type)
-SELECT userid, unnest(ids), userid, 'manager'::user_permission;
- 
- -- handle updates to animals
- IF array_length(existing_critters, 1) > 0 THEN
-	 FOREACH ar IN ARRAY existing_critters LOOP
-
-	 	-- todo: cases where more than one valid?
-	 	SELECT * FROM animal
-	 	INTO er
-	 	WHERE bctw.is_valid(valid_to) AND critter_id = ar.critter_id
-	 	OR bctw.is_valid(valid_to) AND animal_id = ar.animal_id AND wlh_id = ar.wlh_id
-	  LIMIT 1;
-	 
-	  -- user must have manager, editor, or change permission in order to edit this animal
-	  cur_permission := bctw.get_user_animal_permission(userid, er.critter_id);
-	  IF cur_permission IS NULL OR cur_permission = ANY('{"observer", "none"}'::user_permission[]) THEN
-		  RAISE EXCEPTION 'you do not have required permission to edit this animal - your permission is: "%"', cur_permission::TEXT;
-		END IF;
-	
-		-- todo: if the animal has a data life set and it's been updated, throw?
-
-	 	ids := array_append(ids, er.critter_id);
-	 
-	  -- expire the existing critter record
-	  -- todo: importing "historical" records
-	  IF ar.valid_to IS NULL THEN
-	    UPDATE bctw.animal
-	    SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
-	    WHERE critter_id = er.critter_id;
-	  END IF;
-	 
-	  -- insert the new record
-		INSERT INTO bctw.animal
-		SELECT 
-			er.critter_id,
-			ar.critter_transaction_id,
-			coalesce(ar.animal_id, er.animal_id),
-			coalesce(ar.animal_status, er.animal_status),
-			coalesce(ar.associated_animal_id, er.associated_animal_id),
-			coalesce(ar.associated_animal_relationship, er.associated_animal_relationship),
-			coalesce(ar.capture_comment, er.capture_comment),
-		  	coalesce(ar.capture_date, er.capture_date),
-		  	coalesce(ar.capture_latitude, er.capture_latitude),
-		  	coalesce(ar.capture_longitude,  er.capture_longitude),
-		  	coalesce(ar.capture_utm_easting, er.capture_utm_easting),
-		  	coalesce(ar.capture_utm_northing, er.capture_utm_northing),
-		  	coalesce(ar.capture_utm_zone, er.capture_utm_zone),
-		  	coalesce(ar.collective_unit, er.collective_unit),
-		  	coalesce(ar.animal_colouration, er.animal_colouration),
-			coalesce(ar.ear_tag_left_colour, er.ear_tag_left_colour),
-			coalesce(ar.ear_tag_right_colour, er.ear_tag_right_colour),
-		  	coalesce(ar.estimated_age, er.estimated_age),
-			coalesce(ar.juvenile_at_heel, er.juvenile_at_heel),
-		  	coalesce(ar.life_stage, er.life_stage),
-		  	er.map_colour,
-		  	coalesce(ar.mortality_comment, er.mortality_comment),
-		  	coalesce(ar.mortality_date, er.mortality_date),
-	   		coalesce(ar.mortality_latitude, er.mortality_latitude),
-		  	coalesce(ar.mortality_longitude, er.mortality_longitude),
-		  	coalesce(ar.mortality_utm_easting, er.mortality_utm_easting),
-		  	coalesce(ar.mortality_utm_northing, er.mortality_utm_northing),
-		  	coalesce(ar.mortality_utm_zone, er.mortality_utm_zone),
-		  	coalesce(ar.proximate_cause_of_death, er.proximate_cause_of_death),
-		  	coalesce(ar.ultimate_cause_of_death, er.ultimate_cause_of_death),
-		  	coalesce(ar.population_unit, er.population_unit),
-		  	coalesce(ar.recapture, er.recapture),
-		  	coalesce(ar.region, er.region),
-		  	coalesce(ar.release_comment, er.release_comment),
-		  	coalesce(ar.release_date, er.release_date),
-		  	coalesce(ar.release_latitude, er.release_latitude),
-		  	coalesce(ar.release_longitude, er.release_longitude),
-		  	coalesce(ar.release_utm_easting, er.release_utm_easting),
-		  	coalesce(ar.release_utm_northing, er.release_utm_northing),
-		  	coalesce(ar.release_utm_zone, er.release_utm_zone),
-		  	coalesce(ar.sex, er.sex),
-		  	coalesce(ar.species, er.species),
-		  	coalesce(ar.translocation, er.translocation),
-		  	coalesce(ar.wlh_id, er.wlh_id),
-		  	coalesce(ar.animal_comment, er.animal_comment),
-		  	er.created_at,
-		 	userid, 		-- created_by
-		  	current_ts, -- updated_at
-		  	userid, 		-- updated_by
-		    -- if valid_from & valid_to were in the json record, this record could be historic/not active
-		    coalesce(ar.valid_from, current_ts), 
-		    coalesce(ar.valid_to, NULL),
-		    coalesce(ar.predator_species, er.predator_species),
-		    coalesce(ar.owned_by_user_id, er.owned_by_user_id),
-   		    coalesce(ar.ear_tag_left_id, er.ear_tag_left_id),
-   		    coalesce(ar.ear_tag_right_id, er.ear_tag_right_id),
-   		    coalesce(ar.juvenile_at_heel_count, er.juvenile_at_heel_count);
-		 
-	   END LOOP;
-	END IF;
- 
-  RETURN query
-  SELECT json_strip_nulls(
-    (SELECT json_agg(t)
-  	FROM (
-    	SELECT * FROM bctw.animal_v
-    	WHERE critter_id = ANY (ids)
-    	AND valid_to IS NULL
-  ) t));
+ -- otherwise, call the animal upsert handler
+ RETURN query SELECT bctw.upsert_animal(stridir, animaljson);
 END;
-
 $$;
 
 
-ALTER FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) OWNER TO bctw;
+ALTER FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) OWNER TO bctw;
 
 --
--- Name: FUNCTION upsert_animal(stridir text, animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: FUNCTION upsert_animal_bulk(stridir text, animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) IS 'adds or updates one or more animal records.
-todo: check importing historical (expired) records works
-todo: can owned_by_user_id be modified?
-todo: change ids to transaction_ids for historical records';
+COMMENT ON FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) IS 'called via the CSV bulk upload of animals, this function attempts to convert the json array provided into a table records before any inserts, and returns errors in a bulk format';
 
 
 --
@@ -3842,200 +4172,128 @@ CREATE FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) RETURNS SETOF
     AS $$
 DECLARE
   userid integer := bctw.get_user_id(stridir);
-  j json;                     -- current element of the collarjson loop
+  current_ts timestamptz := now();
+  j jsonb;                     -- current element of the collarjson loop
+  i integer := 0;					-- the loop index variable
+  existing_collar jsonb; -- existing animal record as json
   cr record; 									-- the collar json converted to a collar table ROW
-  er record;				  				-- the existing animal row
-  existing_collars collar[];  -- collar records TO be updated
-  new_collars collar[];       -- NEW collar records
-  i integer := 0;							-- current index of the collarjson loop
+  collars collar[];  -- collar records TO be updated
   ids uuid[];			            -- list of the updated/added collar_ids 
-  current_ts timestamp without time zone;
-  cur_permission bctw.user_permission;
+  new_props_json jsonb; 	-- json object created to add new properties
  
 BEGIN
   IF userid IS NULL THEN
     RAISE exception 'user with idir % does not exist', stridir;
   END IF;
+
+  FOR j IN SELECT jsonb_array_elements(collarjson) LOOP
+     i := i + 1;
+     BEGIN
+	     -- generate history properties for the record
+	     new_props_json := jsonb_build_object(
+			 'updated_at', current_ts,
+			 'updated_by', userid,
+			 'valid_from', (SELECT (SELECT CASE WHEN j ? 'valid_from' THEN j->>'valid_from' ELSE current_ts::text END)::timestamptz),
+			 'valid_to', (SELECT (SELECT CASE WHEN j ? 'valid_to' THEN j->>'valid_to' ELSE NULL END)::timestamptz)
+	     );
+		 -- merge the json objects, passing the new object as the second parameter preserve the updated/new column values
+	     j := (SELECT j || new_props_json);
+			 -- find the existing device as json
+			 existing_collar := CASE WHEN NOT EXISTS (SELECT 1 FROM collar WHERE collar_id = (j->>'collar_id')::uuid LIMIT 1) THEN
+				-- if this device doesn't exist, generate a new collar_id
+				 j || jsonb_build_object('collar_id', crypto.gen_random_uuid(), 'owned_by_user_id', userid) 
+				-- otherwise create a json row from the existing device using the its record in the collar view
+				ELSE (
+					SELECT row_to_json(t)::jsonb FROM (
+-- 						using the view version of the device until frontend passes the code_id for codes. so the code props will be in their text/description format
+--						SELECT * FROM collar WHERE collar_id = (j->>'collar_id')::uuid AND is_valid(valid_to)
+						-- fixme: sometimes returning more than one row
+						SELECT * FROM collar_v WHERE collar_id = (j->>'collar_id')::uuid AND valid_to IS NULL -- is_valid(valid_to) LIMIT 1
+					) t)
+			END;
+--			RAISE EXCEPTION 'hi %', existing_collar;
+			 -- merge the new changes into the existing json record
+--			 todo until frontend passes code_id for codes, call json_to_animal to convert the existing animal props from the merged json object to the int values for codes
+--			 collars := array_append(collars, jsonb_populate_record(NULL::bctw.collar, (existing_collar || j)));
+			 collars := array_append(collars,  json_to_collar(existing_collar || j));
+		 END;
+  END LOOP;
  
-  CREATE TEMPORARY TABLE if not exists errors (
-    rownum integer,
-    error text,
-    row json
-  );
-  -- iterate the json rows, creating collar records for each one and inserting any errors to the temp table
-  FOR j IN SELECT jsonb_array_elements(collarjson) 
-    LOOP
-      i := i + 1;
-      BEGIN
-        -- convert the json record to a collar row
-	      cr := json_to_collar(j::jsonb);
-	   
-        -- the record must have the device ID
-        IF cr.device_id IS NULL THEN
-          INSERT INTO errors
-            VALUES (i, 'Device ID must be supplied', j);
-        END IF;
-       
-        -- Vectronic devices must have a corresponding row in the api_vectronics_collar_data table
-        -- in order to retrieve telemetry. Throw an exception asking the user to upload the keyx file first
-				IF cr.device_make = get_code_id('device_make', 'Vectronic') THEN
-				  IF NOT EXISTS (select 1 from bctw.api_vectronics_collar_data where idcollar = cr.device_id)
-				    THEN INSERT INTO errors VALUES (i, format('A KEYX file does not exist for Vectronic device %s, please upload it before adding device metadata', cr.device_id), j);
-				  END IF;
-				END IF;
-		        
-		    -- add the record to the appropriate array 
-				IF EXISTS (SELECT 1 FROM bctw.collar where device_id = cr.device_id) 
-				  THEN existing_collars := array_append(existing_collars, cr);
-				  ELSE new_collars := array_append(new_collars, cr);
-				END IF;
-		
-        EXCEPTION
-        WHEN sqlstate '22007' THEN
-          INSERT INTO errors
-            VALUES (i, 'invalid date format, date must be in the format YYYY-MM-DD', j);
-        WHEN OTHERS THEN
-          INSERT INTO errors
-            VALUES (i, sqlerrm, j);
-        END;
-    END LOOP;
-  -- exit function early if there were errors casting the collar records from the JSON
-  IF EXISTS (
-    SELECT 1 FROM errors) THEN
-    RETURN query SELECT JSON_AGG(src) FROM (SELECT * FROM errors) src;
-  	RETURN;
-	END IF;
-  DROP TABLE errors;
+  FOREACH cr IN ARRAY collars LOOP
 
-  current_ts = now();
- 	-- save the new collars
-	WITH ins AS (
-	INSERT INTO bctw.collar
-      SELECT
-        crypto.gen_random_uuid(), -- collar_id
-        collar_transaction_id,
-        camera_device_id,
-        device_id,
-        device_deployment_status,
-        device_make,
-        device_malfunction_type,
-        device_model,
-        device_status,
-        device_type,
-        dropoff_device_id,
-        dropoff_frequency,
-        dropoff_frequency_unit,
-        fix_interval,
-        fix_interval_rate,
-        frequency,
-        frequency_unit,
-        activation_comment,
-        first_activation_month,
-        first_activation_year,
-        retrieval_date,
-        retrieved,
-        satellite_network,
-        device_comment,
-        activation_status,
-        current_ts,
-        userid,
-        current_ts,
-        userid,
-        current_ts,
-        NULL, -- todo historical thing
-        userid, -- owned_by_user_id
-        offline_date,
-        offline_type
-      FROM unnest(new_collars)
-     returning collar_id
-     )
-    SELECT array_agg(collar_id) INTO ids FROM ins;
-       
-  -- update existing collar records 
-  IF array_length(existing_collars, 1) > 0 THEN
-  
-    FOREACH cr IN ARRAY existing_collars LOOP
-    
-		  SELECT * FROM collar
-		 	INTO er
-		 	WHERE bctw.is_valid(valid_to)
-		 	AND device_id = cr.device_id
-		  LIMIT 1;
-		 
-		  -- user must have manager, editor, or change permission
-	  	cur_permission := bctw.get_user_collar_permission(userid, er.collar_id);
-	  	IF cur_permission IS NULL OR cur_permission = ANY('{"observer", "none"}'::user_permission[]) THEN
-		  	RAISE EXCEPTION 'you do not have required permission to edit this device - your permission is: "%"', cur_permission::TEXT;
-			END IF;
-	 
-	  	ids := array_append(ids, er.collar_id);
-  
-	    -- expire the current collar record if the new record isn't historical
-	  	IF cr.valid_to IS NULL THEN
-			  UPDATE bctw.collar
-				  SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
-				  WHERE bctw.is_valid(valid_to) 
-				  AND device_id = er.device_id;
-			END IF;
-		 
-		  INSERT INTO bctw.collar SELECT 
-				er.collar_id,
-				cr.collar_transaction_id,
-				coalesce(cr.camera_device_id, er.camera_device_id),
-			  coalesce(cr.device_id, er.device_id),
-			  coalesce(cr.device_deployment_status, er.device_deployment_status),
-			  coalesce(cr.device_make, er.device_make),
-			  coalesce(cr.device_malfunction_type, er.device_malfunction_type),
-			  coalesce(cr.device_model, er.device_model),
-			  coalesce(cr.device_status, er.device_status),
-			  coalesce(cr.device_type, er.device_type),
-			  coalesce(cr.dropoff_device_id, er.dropoff_device_id),
-			  coalesce(cr.dropoff_frequency, er.dropoff_frequency),
-			  coalesce(cr.dropoff_frequency_unit, er.dropoff_frequency_unit),
-			  coalesce(cr.fix_interval, er.fix_interval),
-			  coalesce(cr.fix_interval_rate, er.fix_interval_rate),
-			  coalesce(cr.frequency, er.frequency),
-			  coalesce(cr.frequency_unit, er.frequency_unit),
-			  coalesce(cr.malfunction_date, er.malfunction_date),
-			  coalesce(cr.activation_comment, er.activation_comment),
-			  coalesce(cr.first_activation_month, er.first_activation_month),
-			  coalesce(cr.first_activation_year, er.first_activation_year),
-			  coalesce(cr.retrieval_date, er.retrieval_date),
-			  coalesce(cr.retrieved, er.retrieved),
-			  coalesce(cr.satellite_network, er.satellite_network),
-			  coalesce(cr.device_comment, er.device_comment),
-			  coalesce(cr.activation_status, er.activation_status),
-			  er.created_at, -- created_at
-			  userid, -- created by
-			  current_ts, -- updated at
-			  userid, -- updated AT by
-			  coalesce(cr.valid_from, current_ts),
-			  coalesce(cr.valid_to, NULL),
-			  coalesce(cr.valid_to, er.owned_by_user_id),
-			  er.owned_by_user_id,
-			  coalesce(cr.offline_date, er.offline_date),
-			  coalesce(cr.offline_type, er.offline_type);
-		  END LOOP;
-	END IF;
+		 ids := array_append(ids, cr.collar_id);
 
-	RETURN query SELECT json_agg(t) FROM (
-	  SELECT * FROM bctw.collar_v
-      WHERE collar_id = ANY (ids)
-      AND valid_to IS NULL
-    ) t;
+		-- expire the existing device record
+		UPDATE bctw.collar
+			SET valid_to = current_ts, updated_at = current_ts, updated_by_user_id = userid
+			WHERE bctw.is_valid(valid_to)
+			AND collar_id = cr.collar_id;
+
+		-- finally, insert the new record	
+	 	INSERT INTO bctw.collar SELECT cr.*;
+
+ END LOOP;
+ 
+RETURN query SELECT json_strip_nulls(
+   (SELECT json_agg(t) FROM (
+    SELECT * FROM collar_v
+    WHERE collar_id = ANY (ids)
+    AND (valid_to > now() OR valid_to IS NULL)
+) t));
+
 END;
-
 $$;
 
 
 ALTER FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) OWNER TO bctw;
 
 --
--- Name: FUNCTION upsert_collar(stridir text, collarjson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: upsert_collar_bulk(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) IS 'adds or updates one or more collar records';
+CREATE FUNCTION bctw.upsert_collar_bulk(stridir text, collarjson jsonb) RETURNS SETOF json
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  j json; 					 -- current element of the animaljson loop
+  i integer := 0; 			 -- current index of the animaljson loop
+  cr record; 				 -- the json converted to a collar table row
+BEGIN
+  CREATE TEMPORARY TABLE IF NOT EXISTS errors (
+    rownum integer,
+    error text,
+    ROW json
+  );
+  -- since most bulk insertion errors will be converting the json to a record,
+  -- use an exception handler inside the loop that can continue if one is caught
+  FOR j IN SELECT jsonb_array_elements(collarjson) LOOP
+      i := i + 1;
+      BEGIN
+	    cr := json_to_collar(j::jsonb);
+        EXCEPTION
+        WHEN sqlstate '22007' THEN -- an invalid date was provided
+          INSERT INTO errors
+            VALUES (i, 'invalid date format, date must be in the format YYYY-MM-DD', j);
+        WHEN OTHERS THEN
+          INSERT INTO errors
+            VALUES (i, SQLERRM, j);
+        END;
+  END LOOP;
+   
+  -- exit early if there were errors
+  IF EXISTS (SELECT 1 FROM errors) THEN
+    RETURN query SELECT JSON_AGG(src) FROM (SELECT * FROM errors) src;
+  	RETURN;
+	END IF;
+  DROP TABLE errors;
+ 
+ -- otherwise, call the collar upsert handler
+ RETURN query SELECT bctw.upsert_collar(stridir, collarjson);
+END;
+$$;
 
+
+ALTER FUNCTION bctw.upsert_collar_bulk(stridir text, collarjson jsonb) OWNER TO bctw;
 
 --
 -- Name: upsert_udf(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4127,45 +4385,120 @@ COMMENT ON FUNCTION bctw.upsert_udf(stridir text, new_udf jsonb) IS 'currently u
 
 
 --
+-- Name: upsert_udf2(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.upsert_udf2(username text, new_udf jsonb) RETURNS SETOF jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  userid integer := bctw.get_user_id(username);
+  elem_index integer;
+ 	u jsonb;
+	idx integer;
+  new_udf_array jsonb;
+  udf_type text := jsonb_typeof(new_udf);
+BEGIN
+	IF userid IS NULL THEN
+    RAISE exception 'couldn\t find user with username %', username;
+	END IF;
+   
+	 -- if the there are no udfs for this user, and the new_udf json is an object, store it in an array
+	IF (udf_type = 'object') THEN
+		new_udf_array := jsonb_build_array(new_udf);
+	ELSE IF (udf_type = 'array') THEN
+		new_udf_array := new_udf;
+	ELSE RAISE EXCEPTION 'invalid json, must be object';
+	END IF; END IF;
+    
+	-- this user has no udfs
+	IF NOT EXISTS(
+		SELECT 1 FROM user_defined_field WHERE user_id = userid AND bctw.is_valid(valid_to)
+	)
+	THEN 
+		 INSERT INTO user_defined_field (user_id, udf) VALUES (userid, new_udf_array);
+		 RETURN query SELECT udf FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to);
+	END IF;
+
+		FOR u IN SELECT * FROM jsonb_array_elements(new_udf_array) LOOP
+		-- todo check u has key/type/value properties
+
+		-- find the array index for the matching key and type
+		idx := (
+			SELECT pos - 1 FROM user_defined_field, jsonb_array_elements(udf) 
+				WITH ORDINALITY arr(elem, pos) 
+				WHERE user_id = userid AND is_valid(valid_to)
+				AND elem->>'key' = u->>'key'
+				AND elem->>'type' = u->>'type'
+		);
+	
+		-- if it's a new udf, add it to the beginning of the udf array
+		IF idx IS NULL THEN
+			UPDATE user_defined_field SET udf = jsonb_insert(udf, array[0::text], new_udf)
+			WHERE user_id = userid AND is_valid(valid_to);
+   	ELSE 
+   	-- otherwise, update it at the determined position of the array
+			UPDATE user_defined_field SET udf = jsonb_set(udf, array[idx::text], u)
+			WHERE user_id = userid AND is_valid(valid_to);
+	  END IF;
+  END LOOP;
+  
+	RETURN query SELECT udf FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to);
+END;
+$$;
+
+
+ALTER FUNCTION bctw.upsert_udf2(username text, new_udf jsonb) OWNER TO bctw;
+
+--
 -- Name: upsert_user(text, json, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text DEFAULT 'observer'::bctw.role_type) RETURNS SETOF json
+CREATE FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text) RETURNS SETOF json
     LANGUAGE plpgsql
     AS $$
 DECLARE
   userid integer := bctw.get_user_id (stridir);
---  userrole bctw.role_type;
+  userrole bctw.role_type := bctw.get_user_role(stridir);
   current_ts timestamp without time ZONE := now();
   ur record;
-  roleid uuid;
+  roleid uuid := (SELECT role_id FROM user_role_type WHERE role_type = roletype);
+  newuserid integer;
 BEGIN
   IF userid IS NULL THEN
     RAISE EXCEPTION 'unable find user %', stridir;
   END IF;
- 	-- must be an admin
---  userrole := bctw.get_user_role(stridir);
  
---  IF userrole IS NULL OR userrole != 'administrator' THEN
---    RAISE EXCEPTION 'you must be an administrator to perform this action';
---  END IF;
+  IF userjson->>'username' IS NULL THEN
+  	RAISE EXCEPTION 'must provide username';
+  END IF;
  
---  IF NOT EXISTS (
---    SELECT 1 FROM bctw.user_role_type WHERE role_type = roleType) THEN
---  	RAISE EXCEPTION '% is not a valid role type', roleType;
---  END IF;
+  IF userjson->>'domain' IS NULL THEN 
+  	RAISE EXCEPTION 'must provide a valid domain (BCEID or IDIR)';
+  END IF;
+ 
+  -- new users must have a unique username
+  IF EXISTS (SELECT 1 FROM bctw.USER WHERE username = userjson->>'username' AND userjson->>'id' IS NULL) THEN 
+  	RAISE EXCEPTION 'this username already exists';
+  END IF;
+ 
+  -- must be an admin, unless the user is changing only themself
+  IF userrole IS NULL OR userrole != 'administrator' THEN
+  	IF userid::text != userjson->>'id'
+  		THEN 
+		RAISE EXCEPTION 'you must be an administrator to perform update users';
+	END IF;
+  END IF;
  
   ur := json_populate_record(NULL::bctw.user, userjson);
-  roleid := (SELECT role_id FROM bctw.user_role_type urt WHERE urt.role_type = roleType);
  
-  RETURN query
-  
   WITH ins AS (
-	  INSERT INTO bctw.USER AS uu (id, idir, bceid, email, lastname, firstname, created_by_user_id)
+	  INSERT INTO bctw.USER AS uu (id, username, "domain", phone, email, lastname, firstname, created_by_user_id)
 	  VALUES (
 	  	COALESCE(ur.id, nextval('user_id_seq1')),
-	  	ur.idir,
-	  	ur.bceid,
+	    ur.username,
+	    ur."domain",
+	    ur.phone,
 	  	ur.email,
 	  	ur.lastname,
 	  	ur.firstname,
@@ -4175,32 +4508,30 @@ BEGIN
 	  DO UPDATE SET 
 	    idir = COALESCE(excluded.idir, uu.idir),
 	    bceid = COALESCE(excluded.bceid, uu.bceid),
-	    email = COALESCE(excluded.email, uu.email),
+	    "domain" = COALESCE(excluded."domain", uu."domain"),
+	    username = COALESCE(excluded.username, uu.username),
 	    lastname = COALESCE(excluded.lastname, uu.lastname),
 	    firstname = COALESCE(excluded.firstname, uu.firstname),
+	    email = COALESCE(excluded.email, uu.email),
+	    phone = COALESCE(excluded.phone, uu.phone),
 	    updated_at = current_ts,
 	    updated_by_user_id = userid
-	  RETURNING *
-  ),
-  roleupdate AS (
+	  RETURNING id
+  ) SELECT id FROM ins INTO newuserid;
+
+ IF EXISTS (SELECT 1 FROM user_role_xref WHERE user_id = newuserid) THEN 
+		UPDATE user_role_xref SET role_id = roleid WHERE user_id = newuserid;
+ ELSE 
     INSERT INTO user_role_xref (user_id, role_id)
-    VALUES ((SELECT id FROM ins), roleid)
-    ON CONFLICT ON CONSTRAINT user_role_xref_pkey
-    DO UPDATE SET role_id = roleid
-  )
-  SELECT row_to_json(t) FROM (SELECT * FROM ins) t; 
+    VALUES (newuserid, roleid);
+ END IF;
+
+  RETURN query SELECT row_to_json(t) FROM (SELECT * FROM bctw.USER WHERE id = newuserid) t; 
 END;
 $$;
 
 
 ALTER FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text) OWNER TO bctw;
-
---
--- Name: FUNCTION upsert_user(stridir text, userjson json, roletype text); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text) IS 'adds or updates a user. user performing the action must have a role type of administrator. returns the user row as JSON.';
-
 
 --
 -- Name: upsert_vectronic_key(integer, text, text, text, integer); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4306,6 +4637,7 @@ BEGIN
 	      s.species_scientific_name AS long_description,
 		  s.predator_species
 	    FROM bctw.species s
+	    WHERE is_valid(s.valid_to)
 	    ORDER BY s.species_eng_name
 	  ) t);
    END IF; 
@@ -4320,7 +4652,8 @@ BEGIN
 	      s.species_scientific_name AS long_description,
 		  s.predator_species
 	    FROM bctw.species s
-	    WHERE s.predator_species IS TRUE
+	    WHERE is_valid(s.valid_to)
+	    AND s.predator_species IS TRUE
 	    ORDER BY s.species_eng_name
 	  ) t);
   END IF;
@@ -4659,11 +4992,12 @@ BEGIN
 		  UNION ALL SELECT * FROM no_permission
 		  UNION ALL SELECT * FROM is_owner
 		)
-		
+
 		SELECT
 		  ap.*,
 		  c.device_id,
 		  c.device_make,
+		  c.device_type,
 		  c.frequency
 		FROM
 		  all_permissions ap
@@ -4761,8 +5095,9 @@ DECLARE
 BEGIN
   RETURN query
   SELECT json_agg(t) FROM (
-  SELECT * FROM bctw_dapi_v1.alert_v
-  WHERE critter_id = ANY(critter_access)
+		SELECT * FROM bctw_dapi_v1.alert_v
+		WHERE critter_id = ANY(critter_access)
+		ORDER BY valid_from DESC
   ) t;
 END;
 $$;
@@ -4885,9 +5220,7 @@ CREATE VIEW bctw.animal_v AS
     a.capture_utm_easting,
     a.capture_utm_northing,
     a.capture_utm_zone,
-    ( SELECT code.code_description
-           FROM bctw.code
-          WHERE (code.code_id = a.collective_unit)) AS collective_unit,
+    a.collective_unit,
     a.animal_colouration,
     a.ear_tag_left_id,
     a.ear_tag_right_id,
@@ -4911,7 +5244,6 @@ CREATE VIEW bctw.animal_v AS
     a.mortality_utm_easting,
     a.mortality_utm_northing,
     a.mortality_utm_zone,
-    bctw.get_species_name(a.predator_species) AS predator_species,
     ( SELECT code.code_description
            FROM bctw.code
           WHERE (code.code_id = a.proximate_cause_of_death)) AS proximate_cause_of_death,
@@ -4941,7 +5273,22 @@ CREATE VIEW bctw.animal_v AS
     a.animal_comment,
     a.valid_from,
     a.valid_to,
-    a.owned_by_user_id
+    bctw.get_species_name(a.pcod_predator_species) AS pcod_predator_species,
+    bctw.get_species_name(a.ucod_predator_species) AS ucod_predator_species,
+    a.owned_by_user_id,
+    a.predator_known,
+    a.captivity_status,
+    a.mortality_captivity_status,
+    ( SELECT code.code_description
+           FROM bctw.code
+          WHERE (code.code_id = a.pcod_confidence)) AS pcod_confidence,
+    ( SELECT code.code_description
+           FROM bctw.code
+          WHERE (code.code_id = a.ucod_confidence)) AS ucod_confidence,
+    a.mortality_report,
+    ( SELECT code.code_description
+           FROM bctw.code
+          WHERE (code.code_id = a.mortality_investigation)) AS mortality_investigation
    FROM bctw.animal a;
 
 
@@ -5286,19 +5633,28 @@ CREATE VIEW bctw.collar_v AS
     c.dropoff_frequency,
     ( SELECT code.code_description
            FROM bctw.code
+          WHERE (code.code_id = c.dropoff_mechanism)) AS dropoff_mechanism,
+    ( SELECT code.code_description
+           FROM bctw.code
           WHERE (code.code_id = c.dropoff_frequency_unit)) AS dropoff_frequency_unit,
     c.fix_interval,
     c.fix_interval_rate,
     c.frequency,
+    c.implant_device_id,
     ( SELECT code.code_description
            FROM bctw.code
           WHERE (code.code_id = c.frequency_unit)) AS frequency_unit,
+    c.mortality_mode,
+    c.mortality_period_hr,
     c.malfunction_date,
+    c.malfunction_comment,
     c.activation_status,
+    c.activation_comment,
     c.first_activation_month,
     c.first_activation_year,
     c.retrieval_date,
     c.retrieved,
+    c.retrieval_comment,
     ( SELECT code.code_description
            FROM bctw.code
           WHERE (code.code_id = c.satellite_network)) AS satellite_network,
@@ -5307,6 +5663,10 @@ CREATE VIEW bctw.collar_v AS
     ( SELECT code.code_description
            FROM bctw.code
           WHERE (code.code_id = c.offline_type)) AS offline_type,
+    c.offline_comment,
+    ( SELECT code.code_description
+           FROM bctw.code
+          WHERE (code.code_id = c.device_condition)) AS device_condition,
     c.created_by_user_id,
     c.valid_from,
     c.valid_to,
@@ -5377,103 +5737,184 @@ COMMENT ON TABLE bctw.lotek_collar_data IS 'raw telemetry data from Lotek';
 
 
 --
+-- Name: vectronics_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.vectronics_collar_data (
+    idposition integer NOT NULL,
+    idcollar integer NOT NULL,
+    acquisitiontime timestamp without time zone,
+    scts timestamp without time zone,
+    origincode text,
+    ecefx double precision,
+    ecefy double precision,
+    ecefz double precision,
+    latitude double precision,
+    longitude double precision,
+    height double precision,
+    dop double precision,
+    idfixtype integer,
+    positionerror double precision,
+    satcount integer,
+    ch01satid integer,
+    ch01satcnr integer,
+    ch02satid integer,
+    ch02satcnr integer,
+    ch03satid integer,
+    ch03satcnr integer,
+    ch04satid integer,
+    ch04satcnr integer,
+    ch05satid integer,
+    ch05satcnr integer,
+    ch06satid integer,
+    ch06satcnr integer,
+    ch07satid integer,
+    ch07satcnr integer,
+    ch08satid integer,
+    ch08satcnr integer,
+    ch09satid integer,
+    ch09satcnr integer,
+    ch10satid integer,
+    ch10satcnr integer,
+    ch11satid integer,
+    ch11satcnr integer,
+    ch12satid integer,
+    ch12satcnr integer,
+    idmortalitystatus integer,
+    activity integer,
+    mainvoltage double precision,
+    backupvoltage double precision,
+    temperature double precision,
+    transformedx double precision,
+    transformedy double precision,
+    geom public.geometry(Point,4326)
+);
+
+
+ALTER TABLE bctw.vectronics_collar_data OWNER TO bctw;
+
+--
+-- Name: TABLE vectronics_collar_data; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.vectronics_collar_data IS 'raw telemetry data from Vectronics';
+
+
+--
+-- Name: vendor_merge_view_no_critter; Type: MATERIALIZED VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE MATERIALIZED VIEW bctw.vendor_merge_view_no_critter AS
+ WITH pings AS (
+         SELECT lotek_collar_data.geom,
+            lotek_collar_data.recdatetime AS date_recorded,
+            lotek_collar_data.deviceid AS device_id,
+            'Lotek'::text AS device_vendor
+           FROM bctw.lotek_collar_data
+          WHERE public.st_isvalid(lotek_collar_data.geom)
+        UNION
+         SELECT vectronics_collar_data.geom,
+            vectronics_collar_data.acquisitiontime AS date_recorded,
+            vectronics_collar_data.idcollar AS device_id,
+            'Vectronic'::text AS device_vendor
+           FROM bctw.vectronics_collar_data
+          WHERE public.st_isvalid(vectronics_collar_data.geom)
+        UNION
+         SELECT ats_collar_data.geom,
+            ats_collar_data.date AS date_recorded,
+            ats_collar_data.collarserialnumber AS device_id,
+            'ATS'::text AS device_vendor
+           FROM bctw.ats_collar_data
+          WHERE public.st_isvalid(ats_collar_data.geom)
+        )
+ SELECT p.device_id,
+    p.date_recorded,
+    p.device_vendor,
+    p.geom,
+    row_number() OVER (ORDER BY 1::integer) AS vendor_merge_id
+   FROM pings p
+  WITH NO DATA;
+
+
+ALTER TABLE bctw.vendor_merge_view_no_critter OWNER TO bctw;
+
+--
+-- Name: MATERIALIZED VIEW vendor_merge_view_no_critter; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON MATERIALIZED VIEW bctw.vendor_merge_view_no_critter IS 'Materialized view containing data merged from multiple vendor tables. Additional information from the collar table information, but all animal data is excluded.';
+
+
+--
+-- Name: latest_transmissions; Type: MATERIALIZED VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE MATERIALIZED VIEW bctw.latest_transmissions AS
+ SELECT q.collar_id,
+    q.device_id,
+    q.date_recorded,
+    q.device_vendor,
+    q.geom,
+    q.vendor_merge_id
+   FROM ( SELECT DISTINCT ON (vmv.device_id) c.collar_id,
+            vmv.device_id,
+            vmv.date_recorded,
+            vmv.device_vendor,
+            vmv.geom,
+            vmv.vendor_merge_id
+           FROM (bctw.vendor_merge_view_no_critter vmv
+             LEFT JOIN bctw.collar c ON ((c.device_id = vmv.device_id)))
+          ORDER BY vmv.device_id, vmv.date_recorded DESC) q
+  ORDER BY q.date_recorded DESC
+  WITH NO DATA;
+
+
+ALTER TABLE bctw.latest_transmissions OWNER TO bctw;
+
+--
 -- Name: onboarding; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
 CREATE TABLE bctw.onboarding (
     onboarding_id integer NOT NULL,
-    idir character varying(50),
-    bceid character varying(50),
-    email character varying(200),
-    given_name character varying(200),
-    family_name character varying(200),
-    full_name character varying(600),
-    request_date date,
-    request_access character varying(14),
-    access_status character varying(8),
-    access_status_date date,
-    CONSTRAINT enforce_access CHECK (((request_access)::text = ANY (ARRAY['administrator'::text, 'manager'::text, 'editor'::text, 'observer'::text]))),
-    CONSTRAINT enforce_status CHECK (((access_status)::text = ANY (ARRAY['pending'::text, 'denied'::text, 'granted'::text])))
+    domain bctw.domain_type NOT NULL,
+    username character varying(50) NOT NULL,
+    firstname character varying(50),
+    lastname character varying(50),
+    access bctw.onboarding_status NOT NULL,
+    email character varying(100),
+    phone character varying(20),
+    reason character varying(200),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone,
+    valid_from timestamp with time zone DEFAULT now(),
+    valid_to timestamp with time zone,
+    role_type bctw.role_type NOT NULL
 );
 
 
 ALTER TABLE bctw.onboarding OWNER TO bctw;
 
 --
--- Name: TABLE onboarding; Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: onboarding_onboarding_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON TABLE bctw.onboarding IS 'Store all BC Telemetry Warehouse access requests and adjustments';
+CREATE SEQUENCE bctw.onboarding_onboarding_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
 
---
--- Name: COLUMN onboarding.idir; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.idir IS 'IDIR user name';
-
-
---
--- Name: COLUMN onboarding.bceid; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.bceid IS 'BCeID user name';
-
+ALTER TABLE bctw.onboarding_onboarding_id_seq OWNER TO bctw;
 
 --
--- Name: COLUMN onboarding.email; Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: onboarding_onboarding_id_seq; Type: SEQUENCE OWNED BY; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON COLUMN bctw.onboarding.email IS 'Email address';
-
-
---
--- Name: COLUMN onboarding.given_name; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.given_name IS 'User given/first name';
-
-
---
--- Name: COLUMN onboarding.family_name; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.family_name IS 'User family/last name';
-
-
---
--- Name: COLUMN onboarding.full_name; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.full_name IS 'User full name. This may include multiple middle names';
-
-
---
--- Name: COLUMN onboarding.request_date; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.request_date IS 'Date the user initially requested access';
-
-
---
--- Name: COLUMN onboarding.request_access; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.request_access IS 'The level of access the user has requested. The column is restricted to one of the following; administrator, manager, editor & observer';
-
-
---
--- Name: COLUMN onboarding.access_status; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.access_status IS 'Status the user access request is in. The column is restricted to one of the following; pending, denied & granted';
-
-
---
--- Name: COLUMN onboarding.access_status_date; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.onboarding.access_status_date IS 'Date the status was set';
+ALTER SEQUENCE bctw.onboarding_onboarding_id_seq OWNED BY bctw.onboarding.onboarding_id;
 
 
 --
@@ -5489,8 +5930,8 @@ CREATE TABLE bctw.permission_request (
     requested_by_user_id integer,
     valid_from timestamp without time zone DEFAULT now(),
     valid_to timestamp without time zone,
-    was_granted boolean,
-    was_denied_reason text
+    was_denied_reason text,
+    status bctw.onboarding_status DEFAULT 'pending'::bctw.onboarding_status
 );
 
 
@@ -5529,13 +5970,6 @@ COMMENT ON COLUMN bctw.permission_request.request_comment IS 'optional comment t
 --
 
 COMMENT ON COLUMN bctw.permission_request.requested_by_user_id IS 'user ID of the user who submitted the permission request. should be an owner';
-
-
---
--- Name: COLUMN permission_request.was_granted; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw.permission_request.was_granted IS 'whether or not the request was granted/denied, should only be set on expired requests';
 
 
 --
@@ -5595,7 +6029,6 @@ CREATE TABLE bctw.telemetry_sensor_alert (
     alert_id integer NOT NULL,
     device_id integer NOT NULL,
     device_make text NOT NULL,
-    timeid text,
     alert_type bctw.telemetry_alert_type,
     valid_from timestamp without time zone DEFAULT now(),
     valid_to timestamp without time zone,
@@ -5660,9 +6093,9 @@ CREATE TABLE bctw."user" (
     valid_to timestamp without time zone,
     firstname character varying(50),
     lastname character varying(50),
-    access character varying(8),
     phone character varying(20),
-    CONSTRAINT enforce_access CHECK (((access)::text = ANY (ARRAY['pending'::text, 'denied'::text, 'granted'::text])))
+    domain bctw.domain_type,
+    username character varying(50)
 );
 
 
@@ -5676,17 +6109,17 @@ COMMENT ON TABLE bctw."user" IS 'BCTW user information table';
 
 
 --
--- Name: COLUMN "user".access; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON COLUMN bctw."user".access IS 'Status of user onboarding. They have passed through keycloak then must request special access to the application. Limited to: pending, denied or granted';
-
-
---
 -- Name: COLUMN "user".phone; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
 COMMENT ON COLUMN bctw."user".phone IS 'to be used for alerting the user in the event of mortality alerts';
+
+
+--
+-- Name: COLUMN "user".domain; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw."user".domain IS 'idir or bceid';
 
 
 --
@@ -5859,115 +6292,6 @@ ALTER SEQUENCE bctw.user_role_xref_user_id_seq OWNED BY bctw.user_role_xref.user
 
 
 --
--- Name: vectronics_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
---
-
-CREATE TABLE bctw.vectronics_collar_data (
-    idposition integer NOT NULL,
-    idcollar integer NOT NULL,
-    acquisitiontime timestamp without time zone,
-    scts timestamp without time zone,
-    origincode text,
-    ecefx double precision,
-    ecefy double precision,
-    ecefz double precision,
-    latitude double precision,
-    longitude double precision,
-    height double precision,
-    dop double precision,
-    idfixtype integer,
-    positionerror double precision,
-    satcount integer,
-    ch01satid integer,
-    ch01satcnr integer,
-    ch02satid integer,
-    ch02satcnr integer,
-    ch03satid integer,
-    ch03satcnr integer,
-    ch04satid integer,
-    ch04satcnr integer,
-    ch05satid integer,
-    ch05satcnr integer,
-    ch06satid integer,
-    ch06satcnr integer,
-    ch07satid integer,
-    ch07satcnr integer,
-    ch08satid integer,
-    ch08satcnr integer,
-    ch09satid integer,
-    ch09satcnr integer,
-    ch10satid integer,
-    ch10satcnr integer,
-    ch11satid integer,
-    ch11satcnr integer,
-    ch12satid integer,
-    ch12satcnr integer,
-    idmortalitystatus integer,
-    activity integer,
-    mainvoltage double precision,
-    backupvoltage double precision,
-    temperature double precision,
-    transformedx double precision,
-    transformedy double precision,
-    geom public.geometry(Point,4326)
-);
-
-
-ALTER TABLE bctw.vectronics_collar_data OWNER TO bctw;
-
---
--- Name: TABLE vectronics_collar_data; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON TABLE bctw.vectronics_collar_data IS 'raw telemetry data from Vectronics';
-
-
---
--- Name: vendor_merge_view_no_critter; Type: MATERIALIZED VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE MATERIALIZED VIEW bctw.vendor_merge_view_no_critter AS
- WITH pings AS (
-         SELECT lotek_collar_data.geom,
-            lotek_collar_data.recdatetime AS date_recorded,
-            lotek_collar_data.deviceid AS device_id,
-            'Lotek'::text AS device_vendor
-           FROM bctw.lotek_collar_data
-          WHERE public.st_isvalid(lotek_collar_data.geom)
-        UNION
-         SELECT vectronics_collar_data.geom,
-            vectronics_collar_data.acquisitiontime AS date_recorded,
-            vectronics_collar_data.idcollar AS device_id,
-            'Vectronic'::text AS device_vendor
-           FROM bctw.vectronics_collar_data
-          WHERE public.st_isvalid(vectronics_collar_data.geom)
-        UNION
-         SELECT ats_collar_data.geom,
-            ats_collar_data.date AS date_recorded,
-            ats_collar_data.collarserialnumber AS device_id,
-            'ATS'::text AS device_vendor
-           FROM bctw.ats_collar_data
-          WHERE public.st_isvalid(ats_collar_data.geom)
-        )
- SELECT p.device_id,
-    p.date_recorded,
-    p.device_vendor,
-    p.geom,
-    row_number() OVER (ORDER BY 1::integer) AS vendor_merge_id
-   FROM pings p
-  WITH NO DATA;
-
-
-ALTER TABLE bctw.vendor_merge_view_no_critter OWNER TO bctw;
-
---
--- Name: MATERIALIZED VIEW vendor_merge_view_no_critter; Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON MATERIALIZED VIEW bctw.vendor_merge_view_no_critter IS 'Materialized view containing data merged from multiple vendor tables. Additional information from the collar table information, but all animal data is excluded.';
-
-
---
 -- Name: animal_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
 --
 
@@ -6003,7 +6327,6 @@ CREATE VIEW bctw_dapi_v1.animal_v AS
     av.mortality_utm_easting,
     av.mortality_utm_northing,
     av.mortality_utm_zone,
-    av.predator_species,
     av.proximate_cause_of_death,
     av.ultimate_cause_of_death,
     av.population_unit,
@@ -6023,7 +6346,16 @@ CREATE VIEW bctw_dapi_v1.animal_v AS
     av.animal_comment,
     av.valid_from,
     av.valid_to,
-    av.owned_by_user_id
+    av.pcod_predator_species,
+    av.ucod_predator_species,
+    av.owned_by_user_id,
+    av.predator_known,
+    av.captivity_status,
+    av.mortality_captivity_status,
+    av.pcod_confidence,
+    av.ucod_confidence,
+    av.mortality_report,
+    av.mortality_investigation
    FROM bctw.animal_v av
   WHERE bctw.is_valid(av.valid_to);
 
@@ -6047,21 +6379,30 @@ CREATE VIEW bctw_dapi_v1.collar_v AS
     cv.device_type,
     cv.dropoff_device_id,
     cv.dropoff_frequency,
+    cv.dropoff_mechanism,
     cv.dropoff_frequency_unit,
     cv.fix_interval,
     cv.fix_interval_rate,
     cv.frequency,
+    cv.implant_device_id,
     cv.frequency_unit,
+    cv.mortality_mode,
+    cv.mortality_period_hr,
     cv.malfunction_date,
+    cv.malfunction_comment,
     cv.activation_status,
+    cv.activation_comment,
     cv.first_activation_month,
     cv.first_activation_year,
     cv.retrieval_date,
     cv.retrieved,
+    cv.retrieval_comment,
     cv.satellite_network,
     cv.device_comment,
     cv.offline_date,
     cv.offline_type,
+    cv.offline_comment,
+    cv.device_condition,
     cv.created_by_user_id,
     cv.valid_from,
     cv.valid_to,
@@ -6092,12 +6433,16 @@ CREATE VIEW bctw_dapi_v1.alert_v AS
     a.animal_id,
     a.wlh_id,
     a.species,
+    a.captivity_status,
     a.animal_status,
     ca.assignment_id,
     ca.attachment_start,
     ca.valid_from AS data_life_start,
     ca.valid_to AS data_life_end,
-    ca.attachment_end
+    ca.attachment_end,
+    ( SELECT latest_transmissions.date_recorded
+           FROM bctw.latest_transmissions
+          WHERE (latest_transmissions.collar_id = c.collar_id)) AS last_transmission_date
    FROM (((bctw.telemetry_sensor_alert sa
      JOIN bctw_dapi_v1.collar_v c ON (((sa.device_id = c.device_id) AND (sa.device_make = (c.device_make)::text))))
      JOIN bctw.collar_animal_assignment ca ON ((ca.collar_id = c.collar_id)))
@@ -6143,7 +6488,6 @@ CREATE VIEW bctw_dapi_v1.animal_historic_v AS
     animal_v.mortality_utm_easting,
     animal_v.mortality_utm_northing,
     animal_v.mortality_utm_zone,
-    animal_v.predator_species,
     animal_v.proximate_cause_of_death,
     animal_v.ultimate_cause_of_death,
     animal_v.population_unit,
@@ -6163,7 +6507,16 @@ CREATE VIEW bctw_dapi_v1.animal_historic_v AS
     animal_v.animal_comment,
     animal_v.valid_from,
     animal_v.valid_to,
-    animal_v.owned_by_user_id
+    animal_v.pcod_predator_species,
+    animal_v.ucod_predator_species,
+    animal_v.owned_by_user_id,
+    animal_v.predator_known,
+    animal_v.captivity_status,
+    animal_v.mortality_captivity_status,
+    animal_v.pcod_confidence,
+    animal_v.ucod_confidence,
+    animal_v.mortality_report,
+    animal_v.mortality_investigation
    FROM bctw.animal_v;
 
 
@@ -6255,21 +6608,30 @@ CREATE VIEW bctw_dapi_v1.collar_historic_v AS
     collar_v.device_type,
     collar_v.dropoff_device_id,
     collar_v.dropoff_frequency,
+    collar_v.dropoff_mechanism,
     collar_v.dropoff_frequency_unit,
     collar_v.fix_interval,
     collar_v.fix_interval_rate,
     collar_v.frequency,
+    collar_v.implant_device_id,
     collar_v.frequency_unit,
+    collar_v.mortality_mode,
+    collar_v.mortality_period_hr,
     collar_v.malfunction_date,
+    collar_v.malfunction_comment,
     collar_v.activation_status,
+    collar_v.activation_comment,
     collar_v.first_activation_month,
     collar_v.first_activation_year,
     collar_v.retrieval_date,
     collar_v.retrieved,
+    collar_v.retrieval_comment,
     collar_v.satellite_network,
     collar_v.device_comment,
     collar_v.offline_date,
     collar_v.offline_type,
+    collar_v.offline_comment,
+    collar_v.device_condition,
     collar_v.created_by_user_id,
     collar_v.valid_from,
     collar_v.valid_to,
@@ -6285,10 +6647,8 @@ ALTER TABLE bctw_dapi_v1.collar_historic_v OWNER TO bctw;
 
 CREATE VIEW bctw_dapi_v1.currently_attached_collars_v AS
  SELECT caa.assignment_id,
-    c.device_id,
     caa.collar_id,
-    a.animal_id,
-    a.wlh_id,
+    c.device_id,
     a.critter_id,
     caa.attachment_start,
     caa.valid_from AS data_life_start,
@@ -6348,7 +6708,6 @@ CREATE VIEW bctw_dapi_v1.currently_unattached_critters_v AS
     av.mortality_utm_easting,
     av.mortality_utm_northing,
     av.mortality_utm_zone,
-    av.predator_species,
     av.proximate_cause_of_death,
     av.ultimate_cause_of_death,
     av.population_unit,
@@ -6368,13 +6727,47 @@ CREATE VIEW bctw_dapi_v1.currently_unattached_critters_v AS
     av.animal_comment,
     av.valid_from,
     av.valid_to,
-    av.owned_by_user_id
+    av.pcod_predator_species,
+    av.ucod_predator_species,
+    av.owned_by_user_id,
+    av.predator_known,
+    av.captivity_status,
+    av.mortality_captivity_status,
+    av.pcod_confidence,
+    av.ucod_confidence,
+    av.mortality_report,
+    av.mortality_investigation
    FROM bctw.animal_v av
   WHERE ((av.critter_id IN ( SELECT no_attachments.critter_id
            FROM no_attachments)) AND bctw.is_valid(av.valid_to));
 
 
 ALTER TABLE bctw_dapi_v1.currently_unattached_critters_v OWNER TO bctw;
+
+--
+-- Name: onboarding_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE VIEW bctw_dapi_v1.onboarding_v AS
+ SELECT onboarding.onboarding_id,
+    onboarding.domain,
+    onboarding.username,
+    onboarding.firstname,
+    onboarding.lastname,
+    onboarding.access,
+    onboarding.email,
+    onboarding.phone,
+    onboarding.reason,
+    onboarding.created_at,
+    onboarding.updated_at,
+    onboarding.valid_from,
+    onboarding.valid_to,
+    onboarding.role_type
+   FROM bctw.onboarding
+  ORDER BY onboarding.created_at DESC;
+
+
+ALTER TABLE bctw_dapi_v1.onboarding_v OWNER TO bctw;
 
 --
 -- Name: permission_requests_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
@@ -6397,7 +6790,7 @@ CREATE VIEW bctw_dapi_v1.permission_requests_v AS
             unnest(pr.user_id_list) AS user_id,
             pr.critter_permission_list AS cr,
             pr.valid_to,
-            pr.was_granted,
+            pr.status,
             pr.was_denied_reason
            FROM bctw.permission_request pr
         ), expanded_permissions AS (
@@ -6410,7 +6803,7 @@ CREATE VIEW bctw_dapi_v1.permission_requests_v AS
             es.user_id,
             es.cr,
             es.valid_to,
-            es.was_granted,
+            es.status,
             es.was_denied_reason,
             ( SELECT u.email
                    FROM bctw."user" u
@@ -6439,7 +6832,7 @@ CREATE VIEW bctw_dapi_v1.permission_requests_v AS
           WHERE (bctw.is_valid(a.valid_to) AND (a.critter_id = ((ep.cr ->> 'critter_id'::text))::uuid)))) AS species,
     (ep.cr ->> 'permission_type'::text) AS permission_type,
     ep.valid_to,
-    ep.was_granted,
+    ep.status,
     ep.was_denied_reason
    FROM expanded_permissions ep;
 
@@ -6496,10 +6889,10 @@ COMMENT ON VIEW bctw_dapi_v1.user_animal_assignment_v IS 'A bctw.user_animal_ass
 
 
 --
--- Name: user_defined_fields_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
+-- Name: user_defined_fields_v_bak; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-CREATE VIEW bctw_dapi_v1.user_defined_fields_v AS
+CREATE VIEW bctw_dapi_v1.user_defined_fields_v_bak AS
  SELECT u.udf_id,
     u.user_id,
     specs.type,
@@ -6510,7 +6903,7 @@ CREATE VIEW bctw_dapi_v1.user_defined_fields_v AS
   WHERE bctw.is_valid(u.valid_to);
 
 
-ALTER TABLE bctw_dapi_v1.user_defined_fields_v OWNER TO bctw;
+ALTER TABLE bctw_dapi_v1.user_defined_fields_v_bak OWNER TO bctw;
 
 --
 -- Name: user_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
@@ -6518,6 +6911,8 @@ ALTER TABLE bctw_dapi_v1.user_defined_fields_v OWNER TO bctw;
 
 CREATE VIEW bctw_dapi_v1.user_v AS
  SELECT u.id,
+    u.domain,
+    u.username,
     u.idir,
     u.bceid,
     u.firstname,
@@ -6528,13 +6923,9 @@ CREATE VIEW bctw_dapi_v1.user_v AS
     (EXISTS ( SELECT 1
            FROM bctw.animal
           WHERE (animal.owned_by_user_id = u.id))) AS is_owner,
-    u.access,
     u.created_at,
     u.created_by_user_id,
-    u.updated_at,
-    u.updated_by_user_id,
-    u.valid_from,
-    u.valid_to
+    u.updated_at
    FROM ((bctw."user" u
      LEFT JOIN bctw.user_role_xref rx ON ((rx.user_id = u.id)))
      LEFT JOIN bctw.user_role_type urt ON ((urt.role_id = rx.role_id)))
@@ -6582,7 +6973,15 @@ CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
     collar.valid_to,
     collar.owned_by_user_id,
     collar.offline_date,
-    collar.offline_type
+    collar.offline_type,
+    collar.device_condition,
+    collar.retrieval_comment,
+    collar.malfunction_comment,
+    collar.offline_comment,
+    collar.mortality_mode,
+    collar.mortality_period_hr,
+    collar.dropoff_mechanism,
+    collar.implant_device_id
    FROM bctw.collar
   WHERE ((collar.device_make = ( SELECT code.code_id
            FROM bctw.code
@@ -6591,13 +6990,6 @@ CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
 
 
 ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
-
---
--- Name: VIEW vectronic_devices_without_keyx_entries; Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
---
-
-COMMENT ON VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries IS 'is this actually used anywhere?';
-
 
 --
 -- Name: code code_id; Type: DEFAULT; Schema: bctw; Owner: bctw
@@ -6625,6 +7017,13 @@ ALTER TABLE ONLY bctw.code_header ALTER COLUMN code_header_id SET DEFAULT nextva
 --
 
 ALTER TABLE ONLY bctw.collar_file ALTER COLUMN file_id SET DEFAULT nextval('bctw.collar_file_file_id_seq'::regclass);
+
+
+--
+-- Name: onboarding onboarding_id; Type: DEFAULT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.onboarding ALTER COLUMN onboarding_id SET DEFAULT nextval('bctw.onboarding_onboarding_id_seq'::regclass);
 
 
 --
@@ -6807,14 +7206,6 @@ ALTER TABLE ONLY bctw.telemetry_sensor_alert
 
 
 --
--- Name: telemetry_sensor_alert telemetry_sensor_alert_timeid_key; Type: CONSTRAINT; Schema: bctw; Owner: bctw
---
-
-ALTER TABLE ONLY bctw.telemetry_sensor_alert
-    ADD CONSTRAINT telemetry_sensor_alert_timeid_key UNIQUE (timeid);
-
-
---
 -- Name: user_role_type unique_role_type; Type: CONSTRAINT; Schema: bctw; Owner: bctw
 --
 
@@ -6871,11 +7262,26 @@ ALTER TABLE ONLY bctw.user_role_xref
 
 
 --
+-- Name: user user_username_key; Type: CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw."user"
+    ADD CONSTRAINT user_username_key UNIQUE (username);
+
+
+--
 -- Name: vectronics_collar_data vectronics_collar_data_idposition_key; Type: CONSTRAINT; Schema: bctw; Owner: bctw
 --
 
 ALTER TABLE ONLY bctw.vectronics_collar_data
     ADD CONSTRAINT vectronics_collar_data_idposition_key UNIQUE (idposition);
+
+
+--
+-- Name: latest_transmission_idx; Type: INDEX; Schema: bctw; Owner: bctw
+--
+
+CREATE INDEX latest_transmission_idx ON bctw.latest_transmissions USING btree (collar_id);
 
 
 --
@@ -6897,13 +7303,6 @@ CREATE INDEX lotek_collar_data_idx ON bctw.lotek_collar_data USING btree (device
 --
 
 CREATE INDEX lotek_collar_data_idx2 ON bctw.lotek_collar_data USING btree (recdatetime);
-
-
---
--- Name: onboarding_id_idx; Type: INDEX; Schema: bctw; Owner: bctw
---
-
-CREATE INDEX onboarding_id_idx ON bctw.onboarding USING btree (onboarding_id);
 
 
 --
@@ -6945,14 +7344,35 @@ CREATE TRIGGER animal_insert_trg AFTER INSERT ON bctw.animal REFERENCING NEW TAB
 -- Name: ats_collar_data ats_insert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
-CREATE TRIGGER ats_insert_trg AFTER INSERT ON bctw.ats_collar_data REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION bctw.trg_process_ats_insert();
+CREATE TRIGGER ats_insert_trg AFTER INSERT ON bctw.ats_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN (new.mortality) EXECUTE FUNCTION bctw.trg_process_ats_insert();
+
+
+--
+-- Name: TRIGGER ats_insert_trg ON ats_collar_data; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER ats_insert_trg ON bctw.ats_collar_data IS 'when new telemetry data is received from the API cronjob, run the trigger handler trg_process_ats_insert if the record has a mortality';
 
 
 --
 -- Name: telemetry_sensor_alert lotek_alert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
-CREATE TRIGGER lotek_alert_trg AFTER INSERT ON bctw.telemetry_sensor_alert REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION bctw.trg_process_lotek_insert();
+CREATE TRIGGER lotek_alert_trg AFTER INSERT ON bctw.telemetry_sensor_alert REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.device_make = 'Lotek'::text)) EXECUTE FUNCTION bctw.trg_process_lotek_insert();
+
+
+--
+-- Name: user user_onboarded_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
+--
+
+CREATE TRIGGER user_onboarded_trg AFTER INSERT ON bctw."user" REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION bctw.trg_process_new_user();
+
+
+--
+-- Name: vectronics_collar_data vectronic_alert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
+--
+
+CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 1)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();
 
 
 --
@@ -7115,6 +7535,13 @@ GRANT ALL ON TABLE bctw_dapi_v1.currently_unattached_critters_v TO bctw_api;
 
 
 --
+-- Name: TABLE onboarding_v; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+GRANT ALL ON TABLE bctw_dapi_v1.onboarding_v TO bctw_api;
+
+
+--
 -- Name: TABLE permission_requests_v; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
 --
 
@@ -7136,10 +7563,10 @@ GRANT ALL ON TABLE bctw_dapi_v1.user_animal_assignment_v TO bctw_api;
 
 
 --
--- Name: TABLE user_defined_fields_v; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
+-- Name: TABLE user_defined_fields_v_bak; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-GRANT ALL ON TABLE bctw_dapi_v1.user_defined_fields_v TO bctw_api;
+GRANT ALL ON TABLE bctw_dapi_v1.user_defined_fields_v_bak TO bctw_api;
 
 
 --
