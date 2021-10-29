@@ -1039,11 +1039,15 @@ ALTER FUNCTION bctw.get_last_device_transmission(collarid uuid) OWNER TO bctw;
 CREATE FUNCTION bctw.get_species_id_with_error(commonname text) RETURNS character varying
     LANGUAGE plpgsql
     AS $$
-declare speciesid varchar;
-begin
-	if commonname is null
-	  then return null;
-	end if;
+DECLARE speciesid varchar;
+BEGIN
+	IF commonname IS NULL THEN 
+		RETURN NULL;
+	END IF;
+
+	IF EXISTS (SELECT 1 FROM species WHERE upper(species_code) = upper(commonname)) THEN
+		RETURN upper(commonname);
+	END IF;
 
 	speciesid := (
 	  SELECT s.species_code
@@ -2595,9 +2599,6 @@ begin
 	  'translocation', ar.translocation,
 	  'wlh_id', ar.wlh_id,
 	  'animal_comment', ar.animal_comment,
-	  'valid_from', ar.valid_from,
-	  'valid_to', ar.valid_to,
-	  'owned_by_user_id', ar.owned_by_user_id,
 	  'predator_known', ar.predator_known,
 	  'captivity_status', ar.captivity_status,
 	  'mortality_captivity_status', ar.mortality_captivity_status,
@@ -2606,7 +2607,14 @@ begin
 	  'pcod_confidence', bctw.get_code_id_with_error('cod_confidence'::text, ar.pcod_confidence),
 	  'ucod_confidence', bctw.get_code_id_with_error('cod_confidence', ar.ucod_confidence),
 	  'mortality_report', ar.mortality_report,
-	  'mortality_investigation', bctw.get_code_id_with_error('mortality_investigation', ar.mortality_investigation)
+	  'mortality_investigation', bctw.get_code_id_with_error('mortality_investigation', ar.mortality_investigation),
+	  'created_at', ar.created_at,
+	  'created_by_user_id', ar.created_by_user_id,
+	  'updated_at', ar.created_at,
+	  'updated_by_user_id', ar.created_by_user_id,
+	  'valid_from', ar.valid_from,
+	  'valid_to', ar.valid_to,
+	  'owned_by_user_id', ar.owned_by_user_id
 	);
 	-- return animal record, passing in the two jsonb objects concatenated
 	return query select * from jsonb_populate_record(null::bctw.animal, ret1 || ret2);
@@ -3019,8 +3027,6 @@ begin
 	  'satellite_network', bctw.get_code_id_with_error('satellite_network', cr.satellite_network),
 	  'device_comment', cr.device_comment,
 	  'activation_status', cr.activation_status,
-	  'valid_from', cr.valid_from,
-	  'valid_to', cr.valid_to,
 	  'offline_date', cr.offline_date,
 	  'offline_type', cr.offline_type,
 	  'device_condition', bctw.get_code_id_with_error('device_condition', cr.device_condition),
@@ -3029,8 +3035,14 @@ begin
 	  'mortality_mode', cr.mortality_mode,
 	  'mortality_period_hr', cr.mortality_period_hr,
 	  'dropoff_mechanism', bctw.get_code_id_with_error('dropoff_mechanism', cr.dropoff_mechanism),
-	  'implant_device_id', cr.implant_device_id
-	  
+	  'implant_device_id', cr.implant_device_id,
+	  'created_at', cr.created_at,
+	  'created_by_user_id', cr.created_by_user_id,
+	  'updated_at', cr.created_at,
+	  'updated_by_user_id', cr.created_by_user_id,
+	  'valid_from', cr.valid_from,
+	  'valid_to', cr.valid_to,
+	  'owned_by_user_id', cr.owned_by_user_id
 	);
 	-- return it as a collar table row
 	return query select * from jsonb_populate_record(null::bctw.collar, ret);
@@ -4109,28 +4121,36 @@ $$;
 ALTER FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) OWNER TO bctw;
 
 --
--- Name: upsert_animal_bulk(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+-- Name: upsert_bulk(text, text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) RETURNS SETOF json
+CREATE FUNCTION bctw.upsert_bulk(username text, upsert_type text, records jsonb) RETURNS SETOF json
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  j json; 					 -- current element of the animaljson loop
-  i integer := 0; 			 -- current index of the animaljson loop
-  ar record; 				 -- the animal json converted to an animal table row
+  j json; 			-- current element of the json loop
+  i integer := 0; 	-- current index of the json loop
+  r record; 		-- the json converted to a table row
 BEGIN
+  IF upsert_type != ALL('{"animal", "device"}') THEN
+ 	RAISE EXCEPTION 'invalid bulk type provided: "%", must be either "animal" or "device"', upsert_type;
+  END IF;
+
   CREATE TEMPORARY TABLE IF NOT EXISTS errors (
     rownum integer,
     error text,
     ROW json
   );
-  -- since most bulk insertion errors will be converting the json to an critter record,
+  -- since most bulk insertion errors will be converting the json to a record,
   -- use an exception handler inside the loop that can continue if one is caught
-  FOR j IN SELECT jsonb_array_elements(animaljson) LOOP
+  FOR j IN SELECT jsonb_array_elements(records) LOOP
       i := i + 1;
       BEGIN
-	    ar := json_to_animal(j::jsonb);
+	      IF upsert_type = 'animal' THEN
+	      	r := json_to_animal(j::jsonb);
+	      ELSE 
+	      	r :=  json_to_collar(j::jsonb);
+	      END IF;
         EXCEPTION
         WHEN sqlstate '22007' THEN -- an invalid date was provided
           INSERT INTO errors
@@ -4148,20 +4168,15 @@ BEGIN
 	END IF;
   DROP TABLE errors;
  
- -- otherwise, call the animal upsert handler
- RETURN query SELECT bctw.upsert_animal(stridir, animaljson);
+ IF upsert_type ='animal' THEN RETURN query SELECT bctw.upsert_animal(username, records);
+ ELSE RETURN query SELECT bctw.upsert_collar(username, records);
+ END IF;
+
 END;
 $$;
 
 
-ALTER FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) OWNER TO bctw;
-
---
--- Name: FUNCTION upsert_animal_bulk(stridir text, animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.upsert_animal_bulk(stridir text, animaljson jsonb) IS 'called via the CSV bulk upload of animals, this function attempts to convert the json array provided into a table records before any inserts, and returns errors in a bulk format';
-
+ALTER FUNCTION bctw.upsert_bulk(username text, upsert_type text, records jsonb) OWNER TO bctw;
 
 --
 -- Name: upsert_collar(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4248,147 +4263,10 @@ $$;
 ALTER FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) OWNER TO bctw;
 
 --
--- Name: upsert_collar_bulk(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE FUNCTION bctw.upsert_collar_bulk(stridir text, collarjson jsonb) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  j json; 					 -- current element of the animaljson loop
-  i integer := 0; 			 -- current index of the animaljson loop
-  cr record; 				 -- the json converted to a collar table row
-BEGIN
-  CREATE TEMPORARY TABLE IF NOT EXISTS errors (
-    rownum integer,
-    error text,
-    ROW json
-  );
-  -- since most bulk insertion errors will be converting the json to a record,
-  -- use an exception handler inside the loop that can continue if one is caught
-  FOR j IN SELECT jsonb_array_elements(collarjson) LOOP
-      i := i + 1;
-      BEGIN
-	    cr := json_to_collar(j::jsonb);
-        EXCEPTION
-        WHEN sqlstate '22007' THEN -- an invalid date was provided
-          INSERT INTO errors
-            VALUES (i, 'invalid date format, date must be in the format YYYY-MM-DD', j);
-        WHEN OTHERS THEN
-          INSERT INTO errors
-            VALUES (i, SQLERRM, j);
-        END;
-  END LOOP;
-   
-  -- exit early if there were errors
-  IF EXISTS (SELECT 1 FROM errors) THEN
-    RETURN query SELECT JSON_AGG(src) FROM (SELECT * FROM errors) src;
-  	RETURN;
-	END IF;
-  DROP TABLE errors;
- 
- -- otherwise, call the collar upsert handler
- RETURN query SELECT bctw.upsert_collar(stridir, collarjson);
-END;
-$$;
-
-
-ALTER FUNCTION bctw.upsert_collar_bulk(stridir text, collarjson jsonb) OWNER TO bctw;
-
---
 -- Name: upsert_udf(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.upsert_udf(stridir text, new_udf jsonb) RETURNS SETOF jsonb
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  userid integer := bctw.get_user_id(stridir);
---  elem_index integer;
---  has_udf boolean;
-  new_udf_array json;
-  udf_type text := jsonb_typeof(new_udf);
-begin
-	IF userid IS NULL THEN
-    RAISE exception 'user with idir % does not exist', stridir;
-    END IF;
-   
-   	-- if the there are no udfs for this user, and the new_udf json is an object,
-   	-- put it in an array
-    if (udf_type = 'object') then
-      new_udf_array := jsonb_build_array(new_udf);
-    else if (udf_type = 'array') then
-      new_udf_array := new_udf;
-    else raise exception 'invalid json, must be object or array';
-    end if;
-    end if;
-    
-    if not exists(
-      select 1 from user_defined_field
-	  where user_id = userid
-	  and bctw.is_valid(valid_to)
-    )
-    then 
-   	insert into user_defined_field (user_id, udf) values (userid, new_udf_array);
-
-    else
-    update user_defined_field 
-    set udf = new_udf_array
-    where user_id = userid
-    and bctw.is_valid(valid_to);
-	
-    end if;
-   
-   return query
-   select udf from user_defined_field
-   where user_id = userid
-   and bctw.is_valid(valid_to);
-
-    -- skip all this for now, and just set the udf field to the passed in json
--- try to find the index of the new_udf's key
---	elem_index := (
---		select pos- 1
---   		from user_defined_field, 
---    	jsonb_array_elements(udf) with ordinality arr(elem, pos)
---		where 
---			elem->>'key' = new_udf->>'key'
---		and user_id = userid
---		and bctw.is_valid(valid_to));
---	-- case when this is a new udf
---	if elem_index is null then
---		update user_defined_field
---    	set udf = jsonb_insert(
---   			udf,
---   			array[0::text], -- insert at the beginning of the array
---   			new_udf
---   		);
---   	else 
---	update user_defined_field
---	    set udf = jsonb_set(
---	   		udf,
---	   		array[elem_index::text],
---	   		new_udf
---	   );
---   end if;
- 
-END;
-$$;
-
-
-ALTER FUNCTION bctw.upsert_udf(stridir text, new_udf jsonb) OWNER TO bctw;
-
---
--- Name: FUNCTION upsert_udf(stridir text, new_udf jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.upsert_udf(stridir text, new_udf jsonb) IS 'currently used to store user created animal group filters, this function replaces the provided parameter stridir with the new_udf json in the user_defined_field table. This will need updates to not overwrite existing json records if further udfs are to be implemented.';
-
-
---
--- Name: upsert_udf2(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE FUNCTION bctw.upsert_udf2(username text, new_udf jsonb) RETURNS SETOF jsonb
+CREATE FUNCTION bctw.upsert_udf(username text, new_udf jsonb) RETURNS SETOF jsonb
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -4413,42 +4291,46 @@ BEGIN
     
 	-- this user has no udfs
 	IF NOT EXISTS(
-		SELECT 1 FROM user_defined_field WHERE user_id = userid AND bctw.is_valid(valid_to)
+		SELECT 1 FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to)
 	)
-	THEN 
-		 INSERT INTO user_defined_field (user_id, udf) VALUES (userid, new_udf_array);
-		 RETURN query SELECT udf FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to);
-	END IF;
+	THEN INSERT INTO user_defined_field (user_id, udf) VALUES (userid, new_udf_array);
 
+	ELSE 
 		FOR u IN SELECT * FROM jsonb_array_elements(new_udf_array) LOOP
-		-- todo check u has key/type/value properties
-
-		-- find the array index for the matching key and type
-		idx := (
-			SELECT pos - 1 FROM user_defined_field, jsonb_array_elements(udf) 
-				WITH ORDINALITY arr(elem, pos) 
-				WHERE user_id = userid AND is_valid(valid_to)
-				AND elem->>'key' = u->>'key'
-				AND elem->>'type' = u->>'type'
-		);
-	
-		-- if it's a new udf, add it to the beginning of the udf array
-		IF idx IS NULL THEN
-			UPDATE user_defined_field SET udf = jsonb_insert(udf, array[0::text], new_udf)
-			WHERE user_id = userid AND is_valid(valid_to);
-   	ELSE 
-   	-- otherwise, update it at the determined position of the array
-			UPDATE user_defined_field SET udf = jsonb_set(udf, array[idx::text], u)
-			WHERE user_id = userid AND is_valid(valid_to);
-	  END IF;
-  END LOOP;
+			-- todo check u has key/type/value properties
+			-- find the array index for the matching key and type
+			idx := (
+				SELECT pos - 1 FROM user_defined_field, jsonb_array_elements(udf) 
+					WITH ORDINALITY arr(elem, pos) 
+					WHERE user_id = userid AND is_valid(valid_to)
+					AND elem->>'key' = u->>'key'
+					AND elem->>'type' = u->>'type'
+			);
+			-- if it's a new udf, add it to the beginning of the udf array
+			IF idx IS NULL THEN
+				UPDATE user_defined_field SET udf = jsonb_insert(udf, array[0::text], u)
+				WHERE user_id = userid AND is_valid(valid_to);
+			ELSE 
+		   -- otherwise, update it at the determined position of the array
+				UPDATE user_defined_field SET udf = jsonb_set(udf, array[idx::text], u)
+				WHERE user_id = userid AND is_valid(valid_to);
+			END IF;
+	  END LOOP;
+	END IF;
   
 	RETURN query SELECT udf FROM user_defined_field WHERE user_id = userid AND is_valid(valid_to);
 END;
 $$;
 
 
-ALTER FUNCTION bctw.upsert_udf2(username text, new_udf jsonb) OWNER TO bctw;
+ALTER FUNCTION bctw.upsert_udf(username text, new_udf jsonb) OWNER TO bctw;
+
+--
+-- Name: FUNCTION upsert_udf(username text, new_udf jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.upsert_udf(username text, new_udf jsonb) IS 'store user defined fields (currently custom animal groups and collective units).';
+
 
 --
 -- Name: upsert_user(text, json, text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4484,9 +4366,8 @@ BEGIN
  
   -- must be an admin, unless the user is changing only themself
   IF userrole IS NULL OR userrole != 'administrator' THEN
-  	IF userid::text != userjson->>'id'
-  		THEN 
-		RAISE EXCEPTION 'you must be an administrator to perform update users';
+  	IF userid::text != userjson->>'id' THEN 
+		RAISE EXCEPTION 'you must be an administrator to update users';
 	END IF;
   END IF;
  
@@ -5271,11 +5152,8 @@ CREATE VIEW bctw.animal_v AS
     a.translocation,
     a.wlh_id,
     a.animal_comment,
-    a.valid_from,
-    a.valid_to,
     bctw.get_species_name(a.pcod_predator_species) AS pcod_predator_species,
     bctw.get_species_name(a.ucod_predator_species) AS ucod_predator_species,
-    a.owned_by_user_id,
     a.predator_known,
     a.captivity_status,
     a.mortality_captivity_status,
@@ -5288,7 +5166,12 @@ CREATE VIEW bctw.animal_v AS
     a.mortality_report,
     ( SELECT code.code_description
            FROM bctw.code
-          WHERE (code.code_id = a.mortality_investigation)) AS mortality_investigation
+          WHERE (code.code_id = a.mortality_investigation)) AS mortality_investigation,
+    a.valid_from,
+    a.valid_to,
+    a.created_at,
+    a.created_by_user_id,
+    a.owned_by_user_id
    FROM bctw.animal a;
 
 
@@ -5667,6 +5550,7 @@ CREATE VIEW bctw.collar_v AS
     ( SELECT code.code_description
            FROM bctw.code
           WHERE (code.code_id = c.device_condition)) AS device_condition,
+    c.created_at,
     c.created_by_user_id,
     c.valid_from,
     c.valid_to,
@@ -6344,18 +6228,20 @@ CREATE VIEW bctw_dapi_v1.animal_v AS
     av.translocation,
     av.wlh_id,
     av.animal_comment,
-    av.valid_from,
-    av.valid_to,
     av.pcod_predator_species,
     av.ucod_predator_species,
-    av.owned_by_user_id,
     av.predator_known,
     av.captivity_status,
     av.mortality_captivity_status,
     av.pcod_confidence,
     av.ucod_confidence,
     av.mortality_report,
-    av.mortality_investigation
+    av.mortality_investigation,
+    av.valid_from,
+    av.valid_to,
+    av.created_at,
+    av.created_by_user_id,
+    av.owned_by_user_id
    FROM bctw.animal_v av
   WHERE bctw.is_valid(av.valid_to);
 
@@ -6403,6 +6289,7 @@ CREATE VIEW bctw_dapi_v1.collar_v AS
     cv.offline_type,
     cv.offline_comment,
     cv.device_condition,
+    cv.created_at,
     cv.created_by_user_id,
     cv.valid_from,
     cv.valid_to,
@@ -6505,18 +6392,20 @@ CREATE VIEW bctw_dapi_v1.animal_historic_v AS
     animal_v.translocation,
     animal_v.wlh_id,
     animal_v.animal_comment,
-    animal_v.valid_from,
-    animal_v.valid_to,
     animal_v.pcod_predator_species,
     animal_v.ucod_predator_species,
-    animal_v.owned_by_user_id,
     animal_v.predator_known,
     animal_v.captivity_status,
     animal_v.mortality_captivity_status,
     animal_v.pcod_confidence,
     animal_v.ucod_confidence,
     animal_v.mortality_report,
-    animal_v.mortality_investigation
+    animal_v.mortality_investigation,
+    animal_v.valid_from,
+    animal_v.valid_to,
+    animal_v.created_at,
+    animal_v.created_by_user_id,
+    animal_v.owned_by_user_id
    FROM bctw.animal_v;
 
 
@@ -6632,6 +6521,7 @@ CREATE VIEW bctw_dapi_v1.collar_historic_v AS
     collar_v.offline_type,
     collar_v.offline_comment,
     collar_v.device_condition,
+    collar_v.created_at,
     collar_v.created_by_user_id,
     collar_v.valid_from,
     collar_v.valid_to,
@@ -6649,6 +6539,7 @@ CREATE VIEW bctw_dapi_v1.currently_attached_collars_v AS
  SELECT caa.assignment_id,
     caa.collar_id,
     c.device_id,
+    concat(c.frequency, ' ', c.frequency_unit) AS frequency,
     a.critter_id,
     caa.attachment_start,
     caa.valid_from AS data_life_start,
