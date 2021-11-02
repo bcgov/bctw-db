@@ -53,7 +53,7 @@ Differences can include:
 
 To target a different repo and branch, create a `settings.local.sh` file in your project's local `openshift` directory and override the GIT parameters, for example;
 ```
-export GIT_URI="https://github.com/bcgov/jag-lcrb-carla-public.git"
+export GIT_URI="https://github.com/bcgov/bctw-db"
 export GIT_REF="openshift-updates"
 ```
 
@@ -81,31 +81,5 @@ For example, the process of deploying and managing database credentials has chan
 ### Initialization
 
 If you are working with a new set of OpenShift projects, or you have run a `oc delete all --all` to start over, run the `initOSProjects.sh` script, this will repair the cluster file system services (in the Pathfinder environment), and ensure the deployment environments have the correct permissions to deploy images from the tools project.
-
-### Generating the Builds, Images and Pipelines in the Tools Project
-
-Run;
-```
-genBuilds.sh
-```
-, and follow the instructions.
-
-Note that the script will stop mid-way through. Ensure builds are complete in the tools project. Also, cllc-public may hang without error. This is likely due to insufficient resources in your local.
-
-IMPORTANT: Sometimes cllc-public will fail while trying to build its image. The error will say that npm install failed. This is due to npm timing out. To fix this resources must be increased. Try increasing requested CPU to 2 cores and RAM to 2 GB.
-
-All of the builds should start automatically as their dependencies are available, starting with builds with only docker image and source dependencies.
-
-The process of deploying the Jenkins pipelines will automatically provision a Jenkins instance if one does not already exist.  This makes it easy to start fresh; you can simply delete the existing instance along with it's associated PVC, and fresh instances will be provisioned.
-
-
-### Generate the Deployment Configurations and Deploy the Components
-
-Run;
-```
-genDepls.sh -e <environmentName/>
-```
-, and follow the instructions to deploy the application components to the desired environments.
-
 
 
