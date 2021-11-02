@@ -1,0 +1,157 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: bctw-db
+objects:
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    annotations:
+      volume.beta.kubernetes.io/storage-class: netapp-block-standard
+    selfLink: /api/v1/namespaces/0dff19-dev/persistentvolumeclaims/bctw-data
+    name: bctw-data  
+  finalizers:
+    - kubernetes.io/pvc-protection
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 6G
+    volumeMode: Filesystem
+- kind: DeploymentConfig
+  apiVersion: apps.openshift.io/v1
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: >
+        {"apiVersion":"apps.openshift.io/v1","kind":"DeploymentConfig","metadata":{"annotations":{},"labels":{"app":"bctw-db"},"name":"bctw-db","namespace":"0dff19-dev"},"spec":{"replicas":1,"selector":{"app":"bctw-db","deploymentconfig":"bctw-db"},"strategy":{"type":"Recreate"},"template":{"metadata":{"creationTimestamp":null,"labels":{"app":"bctw-db","deploymentconfig":"bctw-db"}},"spec":{"containers":[{"env":[{"name":"POSTGRESQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"bctw"}}},{"name":"POSTGRESQL_USER","valueFrom":{"secretKeyRef":{"key":"username","name":"bctw"}}},{"name":"POSTGRESQL_DATABASE","value":"bctw"}],"image":"
+        ","imagePullPolicy":"Always","name":"bctw-db","ports":[{"containerPort":5432,"protocol":"TCP"}],"resources":{"limits":{"memory":"2Gi"},"requests":{"memory":"1Gi"}},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","volumeMounts":[{"mountPath":"/var/lib/pgsql/data","name":"volume-qvg1l"}]}],"dnsPolicy":"ClusterFirst","restartPolicy":"Always","schedulerName":"default-scheduler","securityContext":{},"terminationGracePeriodSeconds":30,"volumes":[{"name":"volume-qvg1l","persistentVolumeClaim":{"claimName":"bctw-data"}}]}},"test":false,"triggers":[{"type":"ConfigChange"},{"imageChangeParams":{"automatic":true,"containerNames":["bctw-db"],"from":{"kind":"ImageStreamTag","name":"postgres-postgis:latest","namespace":"0dff19-tools"}},"type":"ImageChange"}]}}
+    name: bctw-db    
+    generation: 3
+    labels:
+      app: bctw-db
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    triggers:
+      - type: ConfigChange
+      - type: ImageChange
+        imageChangeParams:
+          automatic: true
+          containerNames:
+            - bctw-db
+          from:
+            kind: ImageStreamTag
+            namespace: 0dff19-tools
+            name: 'postgres-postgis:latest'        
+    replicas: 1
+    revisionHistoryLimit: 10
+    test: false
+    selector:
+      app: bctw-db
+      deploymentconfig: bctw-db
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: bctw-db
+          deploymentconfig: bctw-db
+      spec:
+        volumes:
+          - name: volume-qvg1l
+            persistentVolumeClaim:
+              claimName: bctw-data
+        containers:
+          - resources:
+              limits:
+                memory: 2Gi
+              requests:
+                memory: 1Gi
+            terminationMessagePath: /dev/termination-log
+            name: bctw-db
+            env:
+              - name: POSTGRESQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: bctw
+                    key: password
+              - name: POSTGRESQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: bctw
+                    key: username
+              - name: POSTGRESQL_DATABASE
+                value: bctw
+            ports:
+              - containerPort: 5432
+                protocol: TCP
+            imagePullPolicy: Always
+            volumeMounts:
+              - name: volume-qvg1l
+                mountPath: /var/lib/pgsql/data
+            terminationMessagePolicy: File
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler 
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: bctw-db
+  spec:
+    ports:
+      - protocol: TCP
+        port: 5432
+        targetPort: 5432
+    selector:
+      app: bctw-db
+    type: ClusterIP
+    sessionAffinity: None
+parameters:
+- name: NAME
+  displayName: Name
+  description: The name assigned to all of the resources defined in this template.
+  required: true
+  value: bctw-ui
+- name: APP_GROUP
+  displayName: App Group
+  description: Used to group components together.
+  required: true
+  value: bctw
+- name: SOURCE_IMAGE_NAME
+  displayName: Source Image Name
+  description: The name of the image to use for this resource.
+  required: true
+  value: bctw-ui 
+- name: IMAGE_NAMESPACE
+  displayName: Image Namespace
+  description: The namespace of the OpenShift project containing the imagestream for the application.
+  required: true
+  value: 0dff19-tools
+- name: TAG_NAME
+  displayName: Environment TAG name
+  description: The TAG name for this environment, e.g., dev, test, prod
+  required: true
+  value: dev
+- name: CPU_REQUEST
+  displayName: CPU Request
+  description: Starting amount of CPU the container can use.
+  value: 10m
+- name: CPU_LIMIT
+  displayName: CPU Limit
+  description: Maximum amount of CPU the container can use.
+  value: 500m
+- name: MEMORY_REQUEST
+  displayName: Memory Request
+  description: Starting amount of memory the container can use.
+  value: 10Mi
+- name: MEMORY_LIMIT
+  displayName: Memory Limit
+  description: Maximum amount of memory the container can use.
+  value: 512Mi   
