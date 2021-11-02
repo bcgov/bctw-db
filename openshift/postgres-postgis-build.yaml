@@ -1,0 +1,187 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: bctw-db
+parameters:
+  - description: openshift namespace prefix
+    name: NAMESPACE_PREFIX
+    required: true
+  - description: openshift namespace env name
+    name: ENV
+    required: true
+  - description: The name given to the artifact
+    name: NAME
+    value: postgres-postgis
+  - description: image tag for deployments
+    name: TAG
+    required: true  
+  - description: Image name
+    name: IMAGENAME
+    required: true
+    value: postgres-postgis
+objects:
+  - kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: rhsm-ca
+      namespace: 0dff19-tools
+      selfLink: /api/v1/namespaces/0dff19-tools/configmaps/rhsm-ca
+      uid: a57130c4-7390-45f0-9289-3ad5ea939813
+      resourceVersion: '1735516617'
+      creationTimestamp: '2021-02-22T17:36:00Z'
+      managedFields:
+        - manager: Mozilla
+          operation: Update
+          apiVersion: v1
+          time: '2021-02-22T17:36:00Z'
+          fieldsType: FieldsV1
+          fieldsV1:
+            'f:data':
+              .: {}
+              'f:redhat-uep.pem': {}
+    data:
+      redhat-uep.pem: |
+  - kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: rhsm-conf
+      namespace: 0dff19-tools
+      selfLink: /api/v1/namespaces/0dff19-tools/configmaps/rhsm-conf
+      uid: b7f22d07-7789-4f69-ae15-9d8509993214
+      resourceVersion: '1735516618'
+      creationTimestamp: '2021-02-22T17:35:25Z'
+      managedFields:
+        - manager: Mozilla
+          operation: Update
+          apiVersion: v1
+          time: '2021-02-22T17:35:25Z'
+          fieldsType: FieldsV1
+          fieldsV1:
+            'f:data':
+              .: {}
+              'f:rhsm.conf': {}
+    data:
+      rhsm.conf: |
+        [server]
+        hostname = subscription.rhsm.redhat.com
+        prefix = /subscription
+        port = 443
+        insecure = 0
+        ssl_verify_depth = 3
+        [rhsm]
+        baseurl = https://cdn.redhat.com
+        ca_cert_dir = /etc/rhsm/ca/
+        repo_ca_cert = %(ca_cert_dir)sredhat-uep.pem
+        productCertDir = /etc/pki/product
+        entitlementCertDir = /etc/pki/entitlement
+        consumerCertDir = /etc/pki/consumer
+        manage_repos = 1
+        full_refresh_on_yum = 0
+        report_package_profile = 1
+        pluginDir = /usr/share/rhsm-plugins
+        pluginConfDir = /etc/rhsm/pluginconf.d
+        auto_enable_yum_plugins = 1
+        [rhsmcertd]
+        certCheckInterval = 240
+        autoAttachInterval = 1440
+        splay = 1
+        disable = 0
+        [rhsmd]
+        processTimeout = 300
+        [logging]
+        default_log_level = INFO
+
+  - kind: BuildConfig
+    apiVersion: build.openshift.io/v1
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: >
+          {"apiVersion":"build.openshift.io/v1","kind":"BuildConfig","metadata":{"annotations":{},"labels":{"app":"bctw"},"name":"postgres-postgis","namespace":"0dff19-tools"},"spec":{"nodeSelector":null,"output":{"to":{"kind":"ImageStreamTag","name":"postgres-postgis:latest"}},"postCommit":{},"resources":{},"runPolicy":"Serial","source":{"configMaps":[{"configMap":{"name":"rhsm-conf"},"destinationDir":"rhsm-conf"},{"configMap":{"name":"rhsm-ca"},"destinationDir":"rhsm-ca"}],"git":{"ref":"ocp4","uri":"https://github.com/bcgov/bctw-db.git"},"secrets":[{"destinationDir":"etc-pki-entitlement","secret":{"name":"etc-pki-entitlement"}}],"type":"Git"},"strategy":{"dockerStrategy":{"dockerfilePath":"Dockerfile-ocp4"}},"triggers":[{"type":"ConfigChange"}]}}
+      selfLink: >-
+        /apis/build.openshift.io/v1/namespaces/0dff19-tools/buildconfigs/postgres-postgis
+      resourceVersion: '620481061'
+      name: postgres-postgis
+      uid: efb00cf9-232c-4298-9853-1631d68d0972
+      creationTimestamp: '2021-03-01T10:20:34Z'
+      managedFields:
+        - manager: oc
+          operation: Update
+          apiVersion: build.openshift.io/v1
+          time: '2021-03-01T10:20:34Z'
+          fieldsType: FieldsV1
+          fieldsV1:
+            'f:metadata':
+              'f:annotations':
+                .: {}
+                'f:kubectl.kubernetes.io/last-applied-configuration': {}
+              'f:labels':
+                .: {}
+                'f:app': {}
+            'f:spec':
+              'f:output':
+                'f:to':
+                  .: {}
+                  'f:kind': {}
+                  'f:name': {}
+              'f:runPolicy': {}
+              'f:source':
+                'f:configMaps': {}
+                'f:git':
+                  .: {}
+                  'f:ref': {}
+                  'f:uri': {}
+                'f:secrets': {}
+                'f:type': {}
+              'f:strategy':
+                'f:dockerStrategy':
+                  .: {}
+                  'f:dockerfilePath': {}
+                'f:type': {}
+              'f:triggers': {}
+        - manager: openshift-apiserver
+          operation: Update
+          apiVersion: build.openshift.io/v1
+          time: '2021-03-01T14:34:52Z'
+          fieldsType: FieldsV1
+          fieldsV1:
+            'f:status':
+              'f:lastVersion': {}
+      namespace: ${NAMESPACE_PREFIX}-tools
+      labels:
+        app: bctw
+    spec:
+      nodeSelector: null
+      output:
+        to:
+          kind: ImageStreamTag
+          name: '${IMAGENAME}:latest'
+      resources: {}
+      successfulBuildsHistoryLimit: 5
+      failedBuildsHistoryLimit: 5
+      strategy:
+        type: Docker
+        dockerStrategy:
+          dockerfilePath: Dockerfile-ocp4
+      postCommit: {}
+      source:
+        type: Git
+        git:
+          uri: 'https://github.com/bcgov/bctw-db.git'
+          ref: ocp4
+        secrets:
+          - secret:
+              name: etc-pki-entitlement
+            destinationDir: etc-pki-entitlement
+        configMaps:
+          - configMap:
+              name: rhsm-conf
+            destinationDir: rhsm-conf
+          - configMap:
+              name: rhsm-ca
+            destinationDir: rhsm-ca
+      triggers:
+        - type: ConfigChange
+      runPolicy: Serial
+    status:
+      lastVersion: 21
