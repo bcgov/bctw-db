@@ -531,7 +531,7 @@ BEGIN
  
  current_ts = now();
  
- FOR aid IN SELECT critter_id FROM bctw.animal WHERE critter_id = ANY(ids) LOOP
+ FOREACH aid IN ARRAY ids LOOP
  	
  -- check critter exists
  	IF NOT EXISTS (
@@ -604,14 +604,14 @@ BEGIN
   
  -- todo: collar access permission??
  current_ts = now();
- 
- for cid in select collar_id from bctw.collar where collar_id = any(ids) loop
+
+ FOREACH cid IN ARRAY ids LOOP
  	-- check collar exists
- 	if not exists (
- 		select 1 from bctw.collar where collar_id = cid
- 		and bctw.is_valid(valid_to) 		
- 	) then raise exception 'collar % does not exist', cid;
- 	end if;
+ 	IF NOT EXISTS (
+ 		SELECT 1 FROM bctw.collar WHERE collar_id = cid
+ 		AND bctw.is_valid(valid_to) 		
+ 	) THEN RAISE EXCEPTION 'collar % does not exist', cid;
+ 	END IF;
 	
 	-- if there is a critter attached to this collar, remove it
 	update bctw.collar_animal_assignment set
@@ -894,9 +894,8 @@ BEGIN
 	  ON c.code_header_id = ch.code_header_id
 	  WHERE lower(ch.code_header_name) = lower(codeheader)
 	  AND is_valid(c.valid_to)
-	  AND (
-	  	lower(c.code_description) = lower(description) or lower(c.code_name) = lower(description)
-		)
+	  AND (lower(c.code_description) = lower(description) or lower(c.code_name) = lower(description))
+	  LIMIT 1
 	);
 	IF code_id IS NULL THEN
 	  RETURN NULL;
@@ -1091,64 +1090,62 @@ ALTER FUNCTION bctw.get_species_name(code character varying) OWNER TO bctw;
 -- Name: get_telemetry(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) RETURNS SETOF bctw.telemetry
+CREATE FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) RETURNS TABLE(critter_id uuid, species character varying, population_unit character varying, geom public.geometry, date_recorded timestamp with time zone, vendor_merge_id bigint, geojson jsonb)
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  USERID integer := BCTW.GET_USER_ID (STRIDIR);
+  userid integer := get_user_id(stridir);
 BEGIN
-  IF USERID IS NULL THEN
-    RAISE exception 'UNABLE FIND USER WITH IDIR %', STRIDIR;
+  IF userid IS NULL THEN
+    RAISE EXCEPTION 'unable find username %', stridir;
   END IF;
   RETURN QUERY
   SELECT
     a.critter_id,
-    a.critter_transaction_id,
-    c.collar_id,
-    c.collar_transaction_id,
-    (SELECT species_eng_name FROM species WHERE species_code = a.species)::text AS species,
-    a.wlh_id,
-    a.animal_id,
-    vmv.device_id,
-    vmv.device_vendor,
-    c.frequency,
-    (SELECT code_description FROM code WHERE code.code_id = a.animal_status)::text AS animal_status,
-    (SELECT code_description FROM code WHERE code.code_id = a.sex)::text AS sex,
-    (SELECT code_description FROM code WHERE code.code_id = c.device_status)::text AS device_status,
-    (SELECT code_description FROM code WHERE code.code_id = a.population_unit)::text AS population_unit,
-    a.collective_unit::text,
---    (SELECT code_description FROM code WHERE code.code_id = a.collective_unit)::text AS collective_unit,
+--    a.critter_transaction_id,
+--    c.collar_id,
+--    c.collar_transaction_id,
+    (SELECT species_eng_name FROM species WHERE species_code = a.species) AS species,
+--    a.wlh_id,
+--    a.animal_id,
+--    vmv.device_id,
+--    vmv.device_vendor,
+--    c.frequency,
+--    (SELECT code_description FROM code WHERE code.code_id = a.animal_status)::text AS animal_status,
+--    (SELECT code_description FROM code WHERE code.code_id = a.sex)::text AS sex,
+--    (SELECT code_description FROM code WHERE code.code_id = c.device_status)::text AS device_status,
+    (SELECT code_description FROM code WHERE code.code_id = a.population_unit) AS population_unit,
+--    a.collective_unit::text,
     vmv.geom,
     vmv.date_recorded,
     row_number() OVER (ORDER BY 1::integer) AS VENDOR_MERGE_ID,
 	 	JSONB_BUILD_OBJECT('type', 'Feature', 'id', row_number() OVER (ORDER BY 1::integer), 'geometry', ST_ASGEOJSON (VMV.geom)::jsonb, 'properties', 
 	 		JSONB_BUILD_OBJECT(
-	 			'collar_id', c.collar_id,
-	 			'critter_id', a.critter_id,
-	 			'species', (SELECT species_eng_name FROM species WHERE species_code = a.species),
-	 			'wlh_id', a.wlh_id,
-	 			'animal_id', a.animal_id,
-	 			'device_id', vmv.device_id,
-	 			'device_vendor', vmv.device_vendor,
-	 			'frequency', c.frequency,
-	 			'frequency_unit', (SELECT code_description FROM code WHERE code.code_id = c.frequency_unit),
-	 			'animal_status', (SELECT code_description FROM code WHERE code.code_id = a.animal_status),
-	 			'mortality_date', a.mortality_date,
-	 			'sex', (SELECT code_description FROM code WHERE code.code_id = a.sex),
-	 			'device_status', (SELECT code_description FROM code WHERE code.code_id = c.device_status),
-	 			'population_unit', (SELECT code_description FROM code WHERE code.code_id = a.population_unit),
---	 			'collective_unit', (SELECT code_description FROM code WHERE code.code_id = a.collective_unit),
-	 			'collective_unit', a.collective_unit::text,
-	 			'date_recorded', vmv.date_recorded,
-	 			'map_colour', (select concat(code_name, ',', code_description_long) from bctw.code where code_id = a.map_colour),
-	 			'capture_date', a.capture_date -- fixme ( should be the oldest capture date for this particular device id assignment)
+	 			'collar_id', 		c.collar_id,
+	 			'critter_id', 		a.critter_id,
+	 			'species', 			(SELECT species_eng_name FROM species WHERE species_code = a.species),
+	 			'wlh_id', 			a.wlh_id,
+	 			'animal_id', 		a.animal_id,
+	 			'device_id', 		vmv.device_id,
+	 			'device_vendor', 	vmv.device_vendor,
+	 			'frequency', 		c.frequency,
+	 			'frequency_unit', 	(SELECT code_description FROM code WHERE code.code_id = c.frequency_unit),
+	 			'animal_status', 	(SELECT code_description FROM code WHERE code.code_id = a.animal_status),
+	 			'mortality_date', 	a.mortality_date,
+	 			'sex', 				(SELECT code_description FROM code WHERE code.code_id = a.sex),
+	 			'device_status', 	(SELECT code_description FROM code WHERE code.code_id = c.device_status),
+	 			'population_unit',  (SELECT code_description FROM code WHERE code.code_id = a.population_unit),
+	 			'collective_unit', 	a.collective_unit,
+	 			'date_recorded', 	vmv.date_recorded,
+	 			'map_colour', 		(SELECT concat(code_name, ',', code_description_long) from bctw.code where code_id = a.map_colour),
+	 			'capture_date', 	a.capture_date -- fixme (should be the oldest capture date for this particular device id assignment)
 	 	 )
- 	  ) AS geojson,
- 	  (select code_name from bctw.code where code_id = a.map_colour)::text as map_colour
+ 	  ) AS geojson
+-- 	  , (select code_name from bctw.code where code_id = a.map_colour)::text as map_colour
  	
   FROM bctw.vendor_merge_view_no_critter vmv
     JOIN bctw.collar c
-      ON c.device_id = VMV.device_id and (SELECT code_description FROM code WHERE code.code_id = c.device_make) = vmv.device_vendor
+      ON c.device_id = vmv.device_id and (SELECT code_description FROM code WHERE code.code_id = c.device_make) = vmv.device_vendor
       
     JOIN bctw.collar_animal_assignment caa 
       ON caa.collar_id = c.collar_id
@@ -1176,28 +1173,18 @@ BEGIN
 	    SELECT a.critter_id 
 	    FROM animal a
 			INNER JOIN user_animal_assignment ua ON a.critter_id = ua.critter_id
-			WHERE ua.user_id = USERID
+			WHERE ua.user_id = userid
 			AND is_valid(a.valid_to)
 			AND is_valid(ua.valid_to)
-			OR a.owned_by_user_id = USERID
+			OR a.owned_by_user_id = userid
 			AND is_valid(a.valid_to)
-    )
-    AND bctw.is_valid(vmv.date_recorded::timestamp, caa.valid_from::timestamp, caa.valid_to::timestamp);
-   -- todo: confirm removing the line below shows 'invalid' animal/device links
---  AND bctw.is_valid(caa.valid_to);
+    );
+--    AND bctw.is_valid(vmv.date_recorded::timestamp, caa.valid_from::timestamp, caa.valid_to::timestamp);
 END;
 $$;
 
 
 ALTER FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) OWNER TO bctw;
-
---
--- Name: FUNCTION get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'what the 2D map and 3D terrain viewer use to display data for animals with attached devices.
-note: because the result of this function is a user defined type - the query column order matters.';
-
 
 --
 -- Name: get_udf(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -2650,7 +2637,7 @@ CREATE TABLE bctw.collar (
     dropoff_frequency double precision,
     dropoff_frequency_unit integer,
     fix_interval double precision,
-    fix_interval_rate double precision,
+    fix_interval_rate integer,
     frequency double precision,
     frequency_unit integer,
     malfunction_date timestamp with time zone,
@@ -3015,7 +3002,7 @@ begin
 	  'dropoff_frequency', cr.dropoff_frequency,
 	  'dropoff_frequency_unit', bctw.get_code_id_with_error('frequency_unit', cr.dropoff_frequency_unit),
 	  'fix_interval', cr.fix_interval,
-	  'fix_interval_rate', cr.fix_interval_rate,
+	  'fix_interval_rate', bctw.get_code_id_with_error('fix_unit', cr.fix_interval_rate),
 	  'frequency', cr.frequency,
 	  'frequency_unit', bctw.get_code_id_with_error('frequency_unit', cr.frequency_unit),
 	  'activation_comment', cr.activation_comment,
@@ -4826,6 +4813,76 @@ COMMENT ON FUNCTION bctw_dapi_v1.get_user(stridir text) IS 'retrieves user and r
 
 
 --
+-- Name: get_user_critter_access(text, bctw.user_permission[]); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[] DEFAULT '{admin,observer,manager,editor}'::bctw.user_permission[]) RETURNS TABLE(critter_id uuid, animal_id character varying, wlh_id character varying, animal_species character varying, permission_type bctw.user_permission, device_id integer, device_make character varying, device_type character varying, frequency double precision)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	userid integer := bctw.get_user_id(stridir);
+BEGIN
+	IF userid IS NULL
+		THEN RAISE EXCEPTION 'unable to find user with idir %', stridir;
+	END IF;
+
+	RETURN query SELECT * FROM (
+	
+		WITH 
+		is_owner AS (
+		  SELECT a3.critter_id, a3.animal_id, a3.wlh_id, bctw.get_species_name(a3.species) AS species, 'manager'::bctw.user_permission AS "permission_type"
+			FROM animal a3
+			WHERE is_valid(a3.valid_to)
+			AND a3.owned_by_user_id = userid
+		),
+		
+		has_permission AS (
+		  SELECT a.critter_id, a.animal_id, a.wlh_id, bctw.get_species_name(a.species) AS species, ua.permission_type
+		  FROM bctw.animal a
+		    INNER JOIN bctw.user_animal_assignment ua 
+		    ON a.critter_id = ua.critter_id
+		  WHERE
+		    ua.user_id = userid
+		    AND is_valid(a.valid_to)
+		    AND a.critter_id NOT IN (SELECT io.critter_id FROM is_owner io)
+		),
+		
+		no_permission AS (
+		  SELECT a2.critter_id, a2.animal_id, a2.wlh_id, bctw.get_species_name(a2.species) AS species, 'none'::bctw.user_permission AS "permission_type"
+		  FROM animal a2 
+		  WHERE a2.critter_id NOT IN (SELECT hp.critter_id FROM has_permission hp)
+		  AND a2.critter_id NOT IN (SELECT io2.critter_id FROM is_owner io2)		    
+		  AND is_valid(a2.valid_to)
+		),
+		
+		all_permissions AS (
+		  SELECT * FROM has_permission
+		  UNION ALL SELECT * FROM no_permission
+		  UNION ALL SELECT * FROM is_owner
+		)
+
+		SELECT
+		  ap.*,
+		  c.device_id,
+		  c.device_make,
+		  c.device_type,
+		  c.frequency
+		FROM
+		  all_permissions ap
+		  -- fixme: joining on non-currently attached collars
+		  LEFT JOIN bctw_dapi_v1.currently_attached_collars_v caa
+		  	ON caa.critter_id = ap.critter_id
+		  LEFT JOIN bctw_dapi_v1.collar_v c 
+		  	ON caa.collar_id = c.collar_id
+	  WHERE ap.permission_type = ANY(permission_filter)
+	 ) t;
+END;
+$$;
+
+
+ALTER FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[]) OWNER TO bctw;
+
+--
 -- Name: get_user_critter_access_json(text, bctw.user_permission[]); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
 --
 
@@ -5521,7 +5578,9 @@ CREATE VIEW bctw.collar_v AS
            FROM bctw.code
           WHERE (code.code_id = c.dropoff_frequency_unit)) AS dropoff_frequency_unit,
     c.fix_interval,
-    c.fix_interval_rate,
+    ( SELECT code.code_description
+           FROM bctw.code
+          WHERE (code.code_id = c.fix_interval_rate)) AS fix_interval_rate,
     c.frequency,
     c.implant_device_id,
     ( SELECT code.code_description
@@ -6253,49 +6312,49 @@ ALTER TABLE bctw_dapi_v1.animal_v OWNER TO bctw;
 --
 
 CREATE VIEW bctw_dapi_v1.collar_v AS
- SELECT cv.collar_id,
-    cv.collar_transaction_id,
-    cv.camera_device_id,
-    cv.device_id,
-    cv.device_deployment_status,
-    cv.device_make,
-    cv.device_malfunction_type,
-    cv.device_model,
-    cv.device_status,
-    cv.device_type,
-    cv.dropoff_device_id,
-    cv.dropoff_frequency,
-    cv.dropoff_mechanism,
-    cv.dropoff_frequency_unit,
-    cv.fix_interval,
-    cv.fix_interval_rate,
-    cv.frequency,
-    cv.implant_device_id,
-    cv.frequency_unit,
-    cv.mortality_mode,
-    cv.mortality_period_hr,
-    cv.malfunction_date,
-    cv.malfunction_comment,
-    cv.activation_status,
-    cv.activation_comment,
-    cv.first_activation_month,
-    cv.first_activation_year,
-    cv.retrieval_date,
-    cv.retrieved,
-    cv.retrieval_comment,
-    cv.satellite_network,
-    cv.device_comment,
-    cv.offline_date,
-    cv.offline_type,
-    cv.offline_comment,
-    cv.device_condition,
-    cv.created_at,
-    cv.created_by_user_id,
-    cv.valid_from,
-    cv.valid_to,
-    cv.owned_by_user_id
-   FROM bctw.collar_v cv
-  WHERE bctw.is_valid(cv.valid_to);
+ SELECT collar_v.collar_id,
+    collar_v.collar_transaction_id,
+    collar_v.camera_device_id,
+    collar_v.device_id,
+    collar_v.device_deployment_status,
+    collar_v.device_make,
+    collar_v.device_malfunction_type,
+    collar_v.device_model,
+    collar_v.device_status,
+    collar_v.device_type,
+    collar_v.dropoff_device_id,
+    collar_v.dropoff_frequency,
+    collar_v.dropoff_mechanism,
+    collar_v.dropoff_frequency_unit,
+    collar_v.fix_interval,
+    collar_v.fix_interval_rate,
+    collar_v.frequency,
+    collar_v.implant_device_id,
+    collar_v.frequency_unit,
+    collar_v.mortality_mode,
+    collar_v.mortality_period_hr,
+    collar_v.malfunction_date,
+    collar_v.malfunction_comment,
+    collar_v.activation_status,
+    collar_v.activation_comment,
+    collar_v.first_activation_month,
+    collar_v.first_activation_year,
+    collar_v.retrieval_date,
+    collar_v.retrieved,
+    collar_v.retrieval_comment,
+    collar_v.satellite_network,
+    collar_v.device_comment,
+    collar_v.offline_date,
+    collar_v.offline_type,
+    collar_v.offline_comment,
+    collar_v.device_condition,
+    collar_v.created_at,
+    collar_v.created_by_user_id,
+    collar_v.valid_from,
+    collar_v.valid_to,
+    collar_v.owned_by_user_id
+   FROM bctw.collar_v
+  WHERE bctw.is_valid(collar_v.valid_to);
 
 
 ALTER TABLE bctw_dapi_v1.collar_v OWNER TO bctw;
@@ -6561,7 +6620,8 @@ CREATE VIEW bctw_dapi_v1.currently_unattached_critters_v AS
  WITH no_attachments AS (
          SELECT caa.critter_id
            FROM bctw.collar_animal_assignment caa
-          WHERE (NOT bctw.is_valid((now())::timestamp without time zone, (caa.valid_from)::timestamp without time zone, (caa.valid_to)::timestamp without time zone))
+          WHERE ((NOT bctw.is_valid(now(), caa.valid_from, caa.valid_to)) AND (NOT (caa.critter_id IN ( SELECT currently_attached_collars_v.critter_id
+                   FROM bctw_dapi_v1.currently_attached_collars_v))))
         UNION
          SELECT a.critter_id
            FROM bctw.animal a
@@ -6778,23 +6838,6 @@ ALTER TABLE bctw_dapi_v1.user_animal_assignment_v OWNER TO bctw;
 
 COMMENT ON VIEW bctw_dapi_v1.user_animal_assignment_v IS 'A bctw.user_animal_assignment table view for current user-critter assignments.';
 
-
---
--- Name: user_defined_fields_v_bak; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
---
-
-CREATE VIEW bctw_dapi_v1.user_defined_fields_v_bak AS
- SELECT u.udf_id,
-    u.user_id,
-    specs.type,
-    specs.key,
-    to_jsonb(specs.value) AS value
-   FROM bctw.user_defined_field u,
-    LATERAL jsonb_to_recordset(u.udf) specs(type text, key text, value uuid[])
-  WHERE bctw.is_valid(u.valid_to);
-
-
-ALTER TABLE bctw_dapi_v1.user_defined_fields_v_bak OWNER TO bctw;
 
 --
 -- Name: user_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
@@ -7451,13 +7494,6 @@ GRANT ALL ON TABLE bctw_dapi_v1.species_v TO bctw_api;
 --
 
 GRANT ALL ON TABLE bctw_dapi_v1.user_animal_assignment_v TO bctw_api;
-
-
---
--- Name: TABLE user_defined_fields_v_bak; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
---
-
-GRANT ALL ON TABLE bctw_dapi_v1.user_defined_fields_v_bak TO bctw_api;
 
 
 --
