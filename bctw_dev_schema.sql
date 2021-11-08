@@ -3,7 +3,7 @@
 --
 
 -- Dumped from database version 12.5
--- Dumped by pg_dump version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
+-- Dumped by pg_dump version 13.4 (Ubuntu 13.4-1.pgdg18.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -821,6 +821,34 @@ ALTER FUNCTION bctw.get_animal_collar_assignment_history(stridir text, animalid 
 
 COMMENT ON FUNCTION bctw.get_animal_collar_assignment_history(stridir text, animalid uuid) IS 'for a given critter_id, retrieve it''s collar assignment history from the bctw.collar_animal_assignment table';
 
+
+--
+-- Name: get_attached_critter_from_device(integer, text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_attached_critter_from_device(deviceid integer, make text) RETURNS uuid
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	collarid uuid;
+	critterid uuid;
+BEGIN
+	collarid := (
+		SELECT collar_id FROM collar
+		WHERE device_id = deviceid
+		AND device_make = bctw.get_code_id('device_make', make)
+		AND is_valid(valid_to)
+	);
+	IF collarid IS NULL THEN 
+		RETURN NULL;
+	END IF;
+	critterid := (SELECT critter_id FROM collar_animal_assignment WHERE valid_to IS NULL AND collar_id = collarid);
+	RETURN critterid;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_attached_critter_from_device(deviceid integer, make text) OWNER TO bctw;
 
 --
 -- Name: get_closest_collar_record(uuid, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -3501,6 +3529,71 @@ COMMENT ON FUNCTION bctw.submit_permission_request(stridir text, user_emails tex
 
 
 --
+-- Name: trg_new_alert(); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.trg_new_alert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+	-- on insert to the telemetry_sensor_alert table
+	DECLARE 
+	new_record record;
+	collarid uuid;
+	critterid uuid;
+	sms_payload jsonb;
+    BEGIN
+	    SELECT * FROM new_table
+		  INTO new_record;
+	
+			IF new_record IS NULL THEN 
+				RETURN NULL;
+			END IF;
+	    
+			collarid := (
+				SELECT collar_id FROM collar
+				WHERE device_id = new_record.device_id
+				AND is_valid(valid_to)
+				AND device_make = get_code_id('device_make', new_record.device_make)
+			);
+
+			IF collarid IS NULL THEN 
+--				RAISE EXCEPTION 'null collar';
+				RETURN NULL;
+			END IF;
+		
+			critterid := (
+				SELECT critter_id FROM collar_animal_assignment 
+				WHERE is_valid(valid_to) AND collar_id = collarid
+			);
+		
+			IF critterid IS NULL THEN 
+--				RAISE EXCEPTION 'null critter';
+				RETURN NULL;
+			END IF; 
+			
+			sms_payload := (SELECT (SELECT json_agg(t) FROM (
+			    SELECT DISTINCT u.id AS "user_id", u.phone, a.wlh_id, a.species, a.animal_id,
+					new_record.valid_from AS "date_time",
+					(SELECT frequency FROM bctw.collar WHERE collar_id = collarid AND valid_to IS NULL) AS "frequency",
+					new_record.latitude, new_record.longitude, new_record.device_id
+			    FROM user_animal_assignment uaa 
+				JOIN bctw.USER u ON u.id = uaa.user_id
+				JOIN animal_v a ON uaa.critter_id = a.critter_id
+				WHERE uaa.valid_to IS NULL
+				AND uaa.permission_type = ANY('{editor, manager}')
+				AND uaa.critter_id = critterid
+			  ) t));
+			 
+			 PERFORM pg_notify('TRIGGER_ALERT_SMS', sms_payload::text);
+
+ 			RETURN NULL;
+    END;
+$$;
+
+
+ALTER FUNCTION bctw.trg_new_alert() OWNER TO bctw;
+
+--
 -- Name: trg_process_ats_insert(); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -3544,8 +3637,8 @@ CREATE FUNCTION bctw.trg_process_ats_insert() RETURNS trigger
 		END IF;
 
 		-- insert the telemetry alert
-		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type)
-		VALUES (new_record.collarserialnumber, devicevendor, new_record."date", 'mortality'::telemetry_alert_type);
+		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type, latitude, longitude)
+		VALUES (new_record.collarserialnumber, devicevendor, new_record."date", 'mortality'::telemetry_alert_type, new_record.latitude, new_record.longitude);
 
 		-- find the animal attached to this collar, if it exists
 		attached_critter_id = (
@@ -3712,8 +3805,8 @@ CREATE FUNCTION bctw.trg_process_vectronic_insert() RETURNS trigger
 		END IF;
 
 		-- insert the telemetry alert
-		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type)
-		VALUES (new_record.idcollar, devicevendor, new_record.acquisitiontime, 'mortality'::telemetry_alert_type);
+		INSERT INTO telemetry_sensor_alert (device_id, device_make, valid_from, alert_type, latitude, longitude)
+		VALUES (new_record.idcollar, devicevendor, new_record.acquisitiontime, 'mortality'::telemetry_alert_type, new_record.latitude, new_record.longitude);
 
 		-- find the animal attached to this collar, if it exists
 		attached_critter_id = (
@@ -5977,11 +6070,62 @@ CREATE TABLE bctw.telemetry_sensor_alert (
     valid_to timestamp without time zone,
     created_at timestamp without time zone DEFAULT now(),
     snoozed_to timestamp(0) without time zone,
-    snooze_count smallint DEFAULT 0
+    snooze_count smallint DEFAULT 0,
+    latitude double precision,
+    longitude double precision
 );
 
 
 ALTER TABLE bctw.telemetry_sensor_alert OWNER TO bctw;
+
+--
+-- Name: COLUMN telemetry_sensor_alert.alert_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.alert_id IS 'primary key of the alert table';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.device_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.device_id IS 'ID of the device that triggered the alert';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.device_make; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.device_make IS 'supported device makes are ATS, Vectronic, and Lotek';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.alert_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.alert_type IS 'supported alert types are malfunction and mortality';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.valid_from; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.valid_from IS 'todo: is this when the alert was triggered?';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.valid_to; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.valid_to IS 'a non null valid_to column indicates the alert has been dealt with by a user';
+
+
+--
+-- Name: COLUMN telemetry_sensor_alert.created_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.telemetry_sensor_alert.created_at IS 'todo: is this when the alert was triggered?';
+
 
 --
 -- Name: COLUMN telemetry_sensor_alert.snoozed_to; Type: COMMENT; Schema: bctw; Owner: bctw
@@ -7265,6 +7409,13 @@ CREATE INDEX vendor_merge_critterless_idx ON bctw.vendor_merge_view_no_critter U
 --
 
 CREATE INDEX vendor_merge_critterless_idx2 ON bctw.vendor_merge_view_no_critter USING btree (date_recorded);
+
+
+--
+-- Name: telemetry_sensor_alert alert_notify_api_sms_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
+--
+
+CREATE TRIGGER alert_notify_api_sms_trg AFTER INSERT ON bctw.telemetry_sensor_alert REFERENCING NEW TABLE AS new_table FOR EACH ROW EXECUTE FUNCTION bctw.trg_new_alert();
 
 
 --
