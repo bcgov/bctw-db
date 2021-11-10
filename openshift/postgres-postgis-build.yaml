@@ -181,7 +181,12 @@ objects:
               name: rhsm-ca
             destinationDir: rhsm-ca
       triggers:
-        - type: ConfigChange
+      - type: ImageChange
+      - type: ConfigChange    
+      - type: GitHub
+        github:
+          secretReference:
+            name: bctw-db-webhook
       runPolicy: Serial
     status:
       lastVersion: 21
