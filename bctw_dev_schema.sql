@@ -1445,7 +1445,8 @@ BEGIN
 	);
 
 	-- otherwise the permission is based on the the animal the device is attached to.
-	RETURN COALESCE(bctw.get_user_animal_permission(userid, attached_critter), 'none');
+--	RETURN COALESCE(bctw.get_user_animal_permission(userid, attached_critter), 'none');
+	RETURN get_user_animal_permission(userid, attached_critter);
 END;
 $$;
 
@@ -2090,7 +2091,8 @@ CREATE TABLE bctw.animal (
     pcod_confidence integer,
     ucod_confidence integer,
     mortality_report boolean,
-    mortality_investigation integer
+    mortality_investigation integer,
+    device_id integer
 );
 
 
@@ -2544,6 +2546,13 @@ COMMENT ON COLUMN bctw.animal.mortality_report IS 'indicating that details of an
 --
 
 COMMENT ON COLUMN bctw.animal.mortality_investigation IS 'a code indicating the method of investigation of the animal mortality.';
+
+
+--
+-- Name: COLUMN animal.device_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.animal.device_id IS 'temporary column added to assist with bulk loading animal/collar relationships';
 
 
 --
@@ -3572,7 +3581,8 @@ CREATE FUNCTION bctw.trg_new_alert() RETURNS trigger
 			END IF; 
 			
 			sms_payload := (SELECT (SELECT json_agg(t) FROM (
-			    SELECT DISTINCT u.id AS "user_id", u.phone, a.wlh_id, a.species, a.animal_id,
+			    SELECT DISTINCT u.id AS "user_id", u.phone, u.email, u.firstname,
+			    	a.wlh_id, a.species, a.animal_id,
 					new_record.valid_from AS "date_time",
 					(SELECT frequency FROM bctw.collar WHERE collar_id = collarid AND valid_to IS NULL) AS "frequency",
 					new_record.latitude, new_record.longitude, new_record.device_id
@@ -4976,110 +4986,10 @@ $$;
 ALTER FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[]) OWNER TO bctw;
 
 --
--- Name: get_user_critter_access_json(text, bctw.user_permission[]); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
+-- Name: FUNCTION get_user_critter_access(stridir text, permission_filter bctw.user_permission[]); Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-CREATE FUNCTION bctw_dapi_v1.get_user_critter_access_json(stridir text, permission_filter bctw.user_permission[] DEFAULT '{admin,observer,manager,editor}'::bctw.user_permission[]) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-	userid integer := bctw.get_user_id(stridir);
-BEGIN
-	IF userid IS NULL
-		THEN RAISE EXCEPTION 'unable to find user with idir %', stridir;
-	END IF;
-
-	RETURN query SELECT row_to_json(t) FROM (
-	
-		WITH 
-		is_owner AS (
-		  SELECT a3.critter_id, a3.animal_id, a3.wlh_id, bctw.get_species_name(a3.species) AS species, 'manager'::bctw.user_permission AS "permission_type"
-			FROM animal a3
-			WHERE is_valid(a3.valid_to)
-			AND a3.owned_by_user_id = userid
-		),
-		
-		has_permission AS (
-		  SELECT a.critter_id, a.animal_id, a.wlh_id, bctw.get_species_name(a.species) AS species, ua.permission_type
-		  FROM bctw.animal a
-		    INNER JOIN bctw.user_animal_assignment ua 
-		    ON a.critter_id = ua.critter_id
-		  WHERE
-		    ua.user_id = userid
-		    AND is_valid(a.valid_to)
-		    AND a.critter_id NOT IN (SELECT io.critter_id FROM is_owner io)
-		),
-		
-		no_permission AS (
-		  SELECT a2.critter_id, a2.animal_id, a2.wlh_id, bctw.get_species_name(a2.species) AS species, 'none'::bctw.user_permission AS "permission_type"
-		  FROM animal a2 
-		  WHERE a2.critter_id NOT IN (SELECT hp.critter_id FROM has_permission hp)
-		  AND a2.critter_id NOT IN (SELECT io2.critter_id FROM is_owner io2)		    
-		  AND is_valid(a2.valid_to)
-		),
-		
-		all_permissions AS (
-		  SELECT * FROM has_permission
-		  UNION ALL SELECT * FROM no_permission
-		  UNION ALL SELECT * FROM is_owner
-		)
-
-		SELECT
-		  ap.*,
-		  c.device_id,
-		  c.device_make,
-		  c.device_type,
-		  c.frequency
-		FROM
-		  all_permissions ap
-		  -- fixme: joining on non-currently attached collars
-		  LEFT JOIN bctw_dapi_v1.currently_attached_collars_v caa
-		  	ON caa.critter_id = ap.critter_id
-		  LEFT JOIN bctw_dapi_v1.collar_v c 
-		  	ON caa.collar_id = c.collar_id
-	  WHERE ap.permission_type = ANY(permission_filter)
-	 ) t;
-END;
-$$;
-
-
-ALTER FUNCTION bctw_dapi_v1.get_user_critter_access_json(stridir text, permission_filter bctw.user_permission[]) OWNER TO bctw;
-
---
--- Name: FUNCTION get_user_critter_access_json(stridir text, permission_filter bctw.user_permission[]); Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw_dapi_v1.get_user_critter_access_json(stridir text, permission_filter bctw.user_permission[]) IS 'returns a list of critters a user has access to. Includes some device properties if the critter is attached to a collar. the filter parameter permission_filter defaults to all permissions except ''none''. so to include ''none'' you would pass ''{none,view, change, owner, subowner}''';
-
-
---
--- Name: get_user_device_access_json(text, bctw.user_permission[]); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
---
-
-CREATE FUNCTION bctw_dapi_v1.get_user_device_access_json(stridir text, permission_filter bctw.user_permission[] DEFAULT '{admin,observer,manager,editor}'::bctw.user_permission[]) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  user_id integer := bctw.get_user_id(stridir);
-  collar_ids uuid[] := bctw.get_user_collar_access(stridir);
-BEGIN
-	RETURN query SELECT row_to_json(t) FROM (
-		SELECT c.*,
-		bctw.get_user_collar_permission(user_id, c.collar_id) AS "permission_type"
-		FROM collar c
-		WHERE c.collar_id = ANY(collar_ids)
-	 ) t;
-END;
-$$;
-
-
-ALTER FUNCTION bctw_dapi_v1.get_user_device_access_json(stridir text, permission_filter bctw.user_permission[]) OWNER TO bctw;
-
---
--- Name: FUNCTION get_user_device_access_json(stridir text, permission_filter bctw.user_permission[]); Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw_dapi_v1.get_user_device_access_json(stridir text, permission_filter bctw.user_permission[]) IS 'similar to get_user_critter_access_json, but for devices';
+COMMENT ON FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[]) IS 'returns a list of critters a user has access to. Includes some device properties if the critter is attached to a collar. the filter parameter permission_filter defaults to all permissions except "none". so to include "none" you would pass "{none,view, change, owner, subowner}"';
 
 
 --
