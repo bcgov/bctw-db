@@ -418,6 +418,41 @@ CREATE TABLE bctw.collar_vendor_api_credentials (
 ALTER TABLE bctw.collar_vendor_api_credentials OWNER TO bctw;
 
 --
+-- Name: TABLE collar_vendor_api_credentials; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.collar_vendor_api_credentials IS 'used by data-collector cronjobs to retrieve API credentials';
+
+
+--
+-- Name: COLUMN collar_vendor_api_credentials.api_name; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_vendor_api_credentials.api_name IS 'a name given to the credential';
+
+
+--
+-- Name: COLUMN collar_vendor_api_credentials.api_url; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_vendor_api_credentials.api_url IS 'URI the API is accessed from';
+
+
+--
+-- Name: COLUMN collar_vendor_api_credentials.api_username; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_vendor_api_credentials.api_username IS 'encrypted username of the API credential';
+
+
+--
+-- Name: COLUMN collar_vendor_api_credentials.api_password; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_vendor_api_credentials.api_password IS 'encrypted password of the API credential';
+
+
+--
 -- Name: add_collar_vendor_credential(text, text, text, text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -4081,28 +4116,30 @@ BEGIN
       i := i + 1;
       BEGIN
 	   ar := jsonb_populate_record(NULL::telemetry_sensor_alert, j::jsonb);
-	   alertid := (select alert_id from telemetry_sensor_alert where alert_id = ar.alert_id);
-	   if alertid is null then
-	   	 raise exception 'telemetry alert with ID % not found', alertid;
-	   end if;
+	   alertid := (SELECT alert_id FROM telemetry_sensor_alert WHERE alert_id = ar.alert_id);
+	   IF alertid IS NULL THEN
+	   	 RAISE EXCEPTION 'telemetry alert with ID % not found', alertid;
+	   END IF;
 	  alert_records := array_append(alert_records, ar);
-	 end;
+	 END;
   END LOOP;
    
   current_ts = now();
  
-  foreach ar in array alert_records 
-    loop
-	  update bctw.telemetry_sensor_alert
-	  set valid_to = ar.valid_to, snoozed_to = ar.snoozed_to, snooze_count = ar.snooze_count
-	  where alert_id = ar.alert_id;
-    end loop;
+  FOREACH ar IN ARRAY alert_records LOOP
+	  UPDATE bctw.telemetry_sensor_alert
+	  SET valid_to = ar.valid_to,
+	  		snoozed_to = ar.snoozed_to,
+	  		snooze_count = ar.snooze_count,
+	  		updated_at = current_ts
+	  WHERE alert_id = ar.alert_id;
+    END LOOP;
  
   RETURN query
   SELECT json_agg(t)
   FROM (
     SELECT * FROM telemetry_sensor_alert
-    WHERE alert_id = ANY ((select alert_id from unnest(alert_records)))
+    WHERE alert_id = ANY ((SELECT alert_id FROM unnest(alert_records)))
   ) t;
 
 END;
@@ -5642,6 +5679,13 @@ CREATE TABLE bctw.historical_telemetry (
 ALTER TABLE bctw.historical_telemetry OWNER TO bctw;
 
 --
+-- Name: TABLE historical_telemetry; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.historical_telemetry IS 'imported telemetry that does not belong to a vendor.';
+
+
+--
 -- Name: lotek_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -5842,6 +5886,13 @@ CREATE TABLE bctw.onboarding (
 ALTER TABLE bctw.onboarding OWNER TO bctw;
 
 --
+-- Name: TABLE onboarding; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.onboarding IS 'used for onboarding new users to BCTW';
+
+
+--
 -- Name: onboarding_onboarding_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
 --
 
@@ -5882,6 +5933,13 @@ CREATE TABLE bctw.permission_request (
 
 
 ALTER TABLE bctw.permission_request OWNER TO bctw;
+
+--
+-- Name: TABLE permission_request; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.permission_request IS 'tracks user access requests for permissions to animals';
+
 
 --
 -- Name: COLUMN permission_request.request_id; Type: COMMENT; Schema: bctw; Owner: bctw
@@ -5982,7 +6040,8 @@ CREATE TABLE bctw.telemetry_sensor_alert (
     snoozed_to timestamp(0) without time zone,
     snooze_count smallint DEFAULT 0,
     latitude double precision,
-    longitude double precision
+    longitude double precision,
+    updated_at timestamp with time zone
 );
 
 

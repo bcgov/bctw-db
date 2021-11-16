@@ -1,72 +1,88 @@
-DROP TABLE IF EXISTS user;
-DROP TABLE IF EXISTS user_role_type;
-DROP TABLE IF EXISTS user_role_xref;
-DROP TABLE IF EXISTS user_collar_access;
+--
+-- Name: user; Type: TABLE; Schema: bctw; Owner: bctw
+--
 
--- enabling uuid_generate functions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- note - may need to change this table name. user is technically a reserved word in psql
--- so referencing this table will require prepending schema name or referencing it in double quotes
--- idirs should be unique to the table?
-CREATE TABLE bctw.user
-(
-  user_id     uuid PRIMARY key DEFAULT uuid_generate_v1(),
-  idir        VARCHAR(50) UNIQUE,
-  bceid       VARCHAR(50),
-  email       VARCHAR(50),
-  expire_date TIMESTAMP,
-  deleted     BOOLEAN DEFAULT false,
-  deleted_at  TIMESTAMP
+CREATE TABLE bctw."user" (
+    id integer NOT NULL,
+    idir character varying(50),
+    bceid character varying(50),
+    email character varying(100),
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    created_by_user_id integer,
+    updated_at timestamp without time zone DEFAULT now(),
+    updated_by_user_id integer,
+    valid_from timestamp without time zone DEFAULT now() NOT NULL,
+    valid_to timestamp without time zone,
+    firstname character varying(50),
+    lastname character varying(50),
+    phone character varying(20),
+    domain bctw.domain_type,
+    username character varying(50)
 );
 
-/* todo: could possibly be moved into code table? */
-CREATE TABLE bctw.user_role_type
-(
-  role_id     uuid PRIMARY key DEFAULT uuid_generate_v1(),
-  role_type   VARCHAR(50),
-  description VARCHAR(200)
+
+ALTER TABLE bctw."user" OWNER TO bctw;
+
+--
+-- Name: TABLE "user"; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw."user" IS 'BCTW user information table';
+COMMENT ON COLUMN bctw."user".phone IS 'to be used for alerting the user in the event of mortality alerts';
+COMMENT ON COLUMN bctw."user".domain IS 'idir or bceid';
+
+
+--
+-- Name: user_defined_field; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.user_defined_field (
+    udf_id integer NOT NULL,
+    user_id integer NOT NULL,
+    udf jsonb,
+    valid_from timestamp without time zone DEFAULT now() NOT NULL,
+    valid_to timestamp without time zone
 );
-COMMENT ON TABLE bctw.user_role_type is 'User Role Type is a code table for role types. Current role types are Administrator, Owner, Observer';
-
-/*
-*/
-CREATE TABLE bctw.user_role_xref 
-(
-  user_id uuid REFERENCES bctw.user(user_id),
-  role_id uuid REFERENCES bctw.user_role_type(role_id),
-  PRIMARY KEY (user_id, role_id)
-);
-COMMENT ON TABLE bctw.user_role_xref is 'Table that associates a user with a role type. A user can have multiple roles';
-
-/* 
-*/
-CREATE TYPE bctw.collar_access_type AS ENUM ('none', 'view', 'manage');
-COMMENT ON TYPE bctw.collar_access_type IS 'Used in the user_collar_access table for defining how a user can interact with a collar.';
-
-/* ****** user/collar relationship is being changed to user/critter
-todo: deprecate this table?
-*/
-CREATE TABLE bctw.user_collar_access 
-(
-  user_id       uuid NOT NULL,
-  collar_id     INTEGER NOT NULL,
-  collar_access collar_access_type DEFAULT 'none',
-  collar_vendor VARCHAR(50) NOT NULL,
-  expire_date   TIMESTAMP,
-  deleted       BOOLEAN DEFAULT false,
-  deleted_at    TIMESTAMP,
-  PRIMARY KEY (user_id, collar_id, collar_vendor)
-);
-COMMENT ON TABLE user_collar_access is 'User Collar Access is a table for associating a user with critter collars and the collar permissions';
 
 
+ALTER TABLE bctw.user_defined_field OWNER TO bctw;
+CREATE SEQUENCE bctw.user_defined_field_udf_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER TABLE bctw.user_defined_field_udf_id_seq OWNER TO bctw;
+ALTER SEQUENCE bctw.user_defined_field_udf_id_seq OWNED BY bctw.user_defined_field.udf_id;
+CREATE SEQUENCE bctw.user_defined_field_user_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER TABLE bctw.user_defined_field_user_id_seq OWNER TO bctw;
+ALTER SEQUENCE bctw.user_defined_field_user_id_seq OWNED BY bctw.user_defined_field.user_id;
+CREATE SEQUENCE bctw.user_id_seq1
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER TABLE bctw.user_id_seq1 OWNER TO bctw;
+ALTER SEQUENCE bctw.user_id_seq1 OWNED BY bctw."user".id;
 
-CREATE TABLE bctw.user_animal_assignment 
-(
-  user_id uuid REFERENCES bctw.user(user_id)
-  animal_id VARCHAR(20) REFERENCES animal(animal_id),
-  effective_date DATE, 
-  end_date DATE
-)
-comment on table bctw.user_animal_assignment is '';
+
+ALTER TABLE ONLY bctw."user" ALTER COLUMN id SET DEFAULT nextval('bctw.user_id_seq1'::regclass);
+ALTER TABLE ONLY bctw.user_defined_field ALTER COLUMN udf_id SET DEFAULT nextval('bctw.user_defined_field_udf_id_seq'::regclass);
+ALTER TABLE ONLY bctw.user_defined_field ALTER COLUMN user_id SET DEFAULT nextval('bctw.user_defined_field_user_id_seq'::regclass);
+ALTER TABLE ONLY bctw.user_defined_field
+    ADD CONSTRAINT user_defined_field_pkey PRIMARY KEY (udf_id);
+ALTER TABLE ONLY bctw."user"
+    ADD CONSTRAINT user_idir_key UNIQUE (idir);
+ALTER TABLE ONLY bctw."user"
+    ADD CONSTRAINT user_pkey1 PRIMARY KEY (id);
+ALTER TABLE ONLY bctw."user"
+    ADD CONSTRAINT user_username_key UNIQUE (username);
