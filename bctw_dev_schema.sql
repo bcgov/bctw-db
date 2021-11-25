@@ -4573,6 +4573,38 @@ COMMENT ON FUNCTION bctw.upsert_vectronic_key(id_collar integer, com_type text, 
 
 
 --
+-- Name: vendor_insert_raw_vectronic(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	vect_row record;
+  j jsonb; 
+BEGIN
+	FOR j IN SELECT jsonb_array_elements(rec) LOOP
+		vect_row := jsonb_populate_record(NULL::vectronics_collar_data, jsonb_strip_nulls(j));
+		INSERT INTO vectronics_collar_data SELECT vect_row.*
+		ON CONFLICT (idposition) DO NOTHING;
+	END LOOP;
+RETURN jsonb_build_object('device_id', vect_row.idcollar, 'records_found', jsonb_array_length(rec));
+END
+$$;
+
+
+ALTER FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) OWNER TO bctw;
+
+--
+-- Name: FUNCTION vendor_insert_raw_vectronic(rec jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) IS 'inserts json rows of vectronic_collar_data type. ignores  insert of duplicate idposition. 
+returns a json object of the device_id and number of records insertd. 
+todo: include actual records inserted';
+
+
+--
 -- Name: get_animal_history(text, uuid, timestamp without time zone, timestamp without time zone); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
 --
 
@@ -4956,7 +4988,7 @@ COMMENT ON FUNCTION bctw_dapi_v1.get_user(stridir text) IS 'retrieves user and r
 -- Name: get_user_critter_access(text, bctw.user_permission[]); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-CREATE FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[] DEFAULT '{admin,observer,manager,editor}'::bctw.user_permission[]) RETURNS TABLE(critter_id uuid, animal_id character varying, wlh_id character varying, animal_species character varying, permission_type bctw.user_permission, device_id integer, device_make character varying, device_type character varying, frequency double precision)
+CREATE FUNCTION bctw_dapi_v1.get_user_critter_access(stridir text, permission_filter bctw.user_permission[] DEFAULT '{admin,observer,manager,editor}'::bctw.user_permission[]) RETURNS TABLE(critter_id uuid, animal_id character varying, wlh_id character varying, species character varying, permission_type bctw.user_permission, device_id integer, device_make character varying, device_type character varying, frequency double precision)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -5069,7 +5101,9 @@ CREATE FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) RETURNS SET
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  critter_access uuid[] := bctw.get_user_critter_access(stridir);
+  critter_access uuid[] := (
+ 		SELECT ARRAY(SELECT critter_id FROM bctw_dapi_v1.get_user_critter_access(stridir, '{admin,manager,editor}'::user_permission[]))
+ 	);
 BEGIN
   RETURN query
   SELECT json_agg(t) FROM (
@@ -5087,7 +5121,7 @@ ALTER FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) OWNER TO bct
 -- Name: FUNCTION get_user_telemetry_alerts(stridir text); Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) IS 'retrives telemetry alerts for a provided user identifier';
+COMMENT ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) IS 'retrives telemetry alerts for a provided user identifier. The user must have admin, manager, or editor permission to the animal';
 
 
 --
