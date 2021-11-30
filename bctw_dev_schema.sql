@@ -3344,9 +3344,8 @@ CREATE PROCEDURE bctw.proc_check_for_missing_telemetry()
 				VALUES (tr.device_id, tr.device_vendor, tr.date_recorded, 'malfunction'::telemetry_alert_type);
 			
 				-- update the device_status to 'potential malfunction'
-				-- maybe dont need to do this since the
 				j := jsonb_build_array(
-					JSONB_BUILD_OBJECT('collar_id', tr.collar_id, 'device_status', 'potential mortality')
+					JSONB_BUILD_OBJECT('collar_id', tr.collar_id, 'device_status', 'potential malfunction')
 					);
 				PERFORM upsert_collar('system', j);
 --				RAISE EXCEPTION 'json %', j;
@@ -3637,6 +3636,13 @@ $$;
 
 
 ALTER FUNCTION bctw.trg_new_alert() OWNER TO bctw;
+
+--
+-- Name: FUNCTION trg_new_alert(); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.trg_new_alert() IS 'triggered on the insertion of a record to the telemetry_sensor_alert table, this pushes a notification to the listening BCTW API to trigger an SMS/Email alert';
+
 
 --
 -- Name: trg_process_ats_insert(); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4573,6 +4579,54 @@ COMMENT ON FUNCTION bctw.upsert_vectronic_key(id_collar integer, com_type text, 
 
 
 --
+-- Name: vendor_insert_raw_lotek(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.vendor_insert_raw_lotek(rec jsonb) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  lr record; -- the json record converted to a table row
+  j jsonb;   -- the current json record of the rec param array
+BEGIN
+	FOR j IN SELECT jsonb_array_elements(rec) LOOP
+		lr := jsonb_populate_record(NULL::lotek_collar_data, jsonb_strip_nulls(j));
+	    INSERT INTO lotek_collar_data
+		SELECT 
+		  lr.channelstatus,
+		  lr.uploadtimestamp,
+		  lr.latitude,
+		  lr.longitude,
+		  lr.altitude,
+		  lr.ecefx,
+		  lr.ecefy,
+		  lr.ecefz,
+		  lr.rxstatus,
+		  lr.pdop,
+		  lr.mainv,
+		  lr.bkupv,
+		  lr.temperature,
+		  lr.fixduration,
+		  lr.bhastempvoltage,
+		  lr.devname,
+		  lr.deltatime,
+		  lr.fixtype,
+		  lr.cepradius,
+		  lr.crc,
+		  lr.deviceid,
+		  lr.recdatetime,
+		  concat(lr.deviceid, '_', lr.recdatetime),
+		  st_setSrid(st_point(lr.longitude, lr.latitude), 4326)
+		ON CONFLICT (timeid) DO NOTHING;
+	END LOOP;
+RETURN jsonb_build_object('device_id', lr.deviceid, 'records_found', jsonb_array_length(rec), 'vendor', 'Lotek');
+END
+$$;
+
+
+ALTER FUNCTION bctw.vendor_insert_raw_lotek(rec jsonb) OWNER TO bctw;
+
+--
 -- Name: vendor_insert_raw_vectronic(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -4580,15 +4634,63 @@ CREATE FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) RETURNS jsonb
     LANGUAGE plpgsql
     AS $$
 DECLARE
-	vect_row record;
-  j jsonb; 
+  vr record; -- the json record converted to a table row
+  j jsonb;   -- the current json record of the rec param array
 BEGIN
 	FOR j IN SELECT jsonb_array_elements(rec) LOOP
-		vect_row := jsonb_populate_record(NULL::vectronics_collar_data, jsonb_strip_nulls(j));
-		INSERT INTO vectronics_collar_data SELECT vect_row.*
+		vr := jsonb_populate_record(NULL::vectronics_collar_data, jsonb_strip_nulls(j));
+		INSERT INTO vectronics_collar_data 
+		SELECT 
+			vr.idposition,
+			vr.idcollar,
+			vr.acquisitiontime,
+			vr.scts,
+			vr.origincode,
+			vr.ecefx,
+			vr.ecefy,
+			vr.ecefz,
+			vr.latitude,
+			vr.longitude,
+			vr.height,
+			vr.dop,
+			vr.idfixtype,
+			vr.positionerror,
+			vr.satcount,
+			vr.ch01satid,
+			vr.ch01satcnr,
+			vr.ch02satid,
+			vr.ch02satcnr,
+			vr.ch03satid,
+			vr.ch03satcnr,
+			vr.ch04satid,
+			vr.ch04satcnr,
+			vr.ch05satid,
+			vr.ch05satcnr,
+			vr.ch06satid,
+			vr.ch06satcnr,
+			vr.ch07satid,
+			vr.ch07satcnr,
+			vr.ch08satid,
+			vr.ch08satcnr,
+			vr.ch09satid,
+			vr.ch09satcnr,
+			vr.ch10satid,
+			vr.ch10satcnr,
+			vr.ch11satid,
+			vr.ch11satcnr,
+			vr.ch12satid,
+			vr.ch12satcnr,
+			vr.idmortalitystatus,
+			vr.activity,
+			vr.mainvoltage,
+			vr.backupvoltage,
+			vr.temperature,
+			vr.transformedx,
+			vr.transformedy,
+			st_setSrid(st_point(vr.longitude, vr.latitude), 4326)
 		ON CONFLICT (idposition) DO NOTHING;
 	END LOOP;
-RETURN jsonb_build_object('device_id', vect_row.idcollar, 'records_found', jsonb_array_length(rec));
+RETURN jsonb_build_object('device_id', vr.idcollar, 'records_found', jsonb_array_length(rec), 'vendor', 'Vectronic');
 END
 $$;
 
