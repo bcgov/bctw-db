@@ -29,9 +29,6 @@ Now you can connect locally.
 psql -h localhost -p 5432 $POSTGRES_DB $POSTGRES_USER
 ```
 
-### Running in OpenShift
-```bash
-cd bctw-db
-oc project 0dff19-test
-oc new-app openshift/bctw-db.yaml
-```
+## OpenShift ##
+
+OpenShift details including build, deployment and pipelines are in the [openshift](openshift/README.md) folder.
