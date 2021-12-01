@@ -480,8 +480,7 @@ ALTER FUNCTION bctw.add_collar_vendor_credential(apiname text, apiurl text, apiu
 -- Name: FUNCTION add_collar_vendor_credential(apiname text, apiurl text, apiusername text, apipassword text, publickey text); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.add_collar_vendor_credential(apiname text, apiurl text, apiusername text, apipassword text, publickey text) IS '
-Encrypts the provided credentials and stores them in the bctw.collar_vendor_api_credentials table.
+COMMENT ON FUNCTION bctw.add_collar_vendor_credential(apiname text, apiurl text, apiusername text, apipassword text, publickey text) IS 'Encrypts the provided credentials and stores them in the bctw.collar_vendor_api_credentials table.
 Not currently exposed to the API layer.
 The data_collector cronjobs use the bctw_dapi_v1.get_collar_vendor_credentials function to retrieve these credentials.
 	apiname - a name for the credential.
@@ -886,6 +885,13 @@ $$;
 ALTER FUNCTION bctw.get_attached_critter_from_device(deviceid integer, make text) OWNER TO bctw;
 
 --
+-- Name: FUNCTION get_attached_critter_from_device(deviceid integer, make text); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_attached_critter_from_device(deviceid integer, make text) IS 'given a device ID and vendor type, retrieve the collar ID from the collar table';
+
+
+--
 -- Name: get_closest_collar_record(uuid, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1095,6 +1101,13 @@ $$;
 ALTER FUNCTION bctw.get_last_device_transmission(collarid uuid) OWNER TO bctw;
 
 --
+-- Name: FUNCTION get_last_device_transmission(collarid uuid); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_last_device_transmission(collarid uuid) IS 'queries the latest_transmission materialized for for the timestamp of the latest telemetry for the provided collar_id.';
+
+
+--
 -- Name: get_species_id_with_error(text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1129,6 +1142,13 @@ $$;
 ALTER FUNCTION bctw.get_species_id_with_error(commonname text) OWNER TO bctw;
 
 --
+-- Name: FUNCTION get_species_id_with_error(commonname text); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_species_id_with_error(commonname text) IS 'attempts to retrieve the species.species_code from the common name. Throws if it cannot find it.';
+
+
+--
 -- Name: get_species_name(character varying); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1150,6 +1170,13 @@ $$;
 ALTER FUNCTION bctw.get_species_name(code character varying) OWNER TO bctw;
 
 --
+-- Name: FUNCTION get_species_name(code character varying); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_species_name(code character varying) IS 'retrieves the species_eng_name given the common name, otherwise will return null if it cannot be found.';
+
+
+--
 -- Name: get_telemetry(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1165,20 +1192,8 @@ BEGIN
   RETURN QUERY
   SELECT
     a.critter_id,
---    a.critter_transaction_id,
---    c.collar_id,
---    c.collar_transaction_id,
     (SELECT species_eng_name FROM species WHERE species_code = a.species) AS species,
---    a.wlh_id,
---    a.animal_id,
---    vmv.device_id,
---    vmv.device_vendor,
---    c.frequency,
---    (SELECT code_description FROM code WHERE code.code_id = a.animal_status)::text AS animal_status,
---    (SELECT code_description FROM code WHERE code.code_id = a.sex)::text AS sex,
---    (SELECT code_description FROM code WHERE code.code_id = c.device_status)::text AS device_status,
     (SELECT code_description FROM code WHERE code.code_id = a.population_unit) AS population_unit,
---    a.collective_unit::text,
     vmv.geom,
     vmv.date_recorded,
     row_number() OVER (ORDER BY 1::integer) AS VENDOR_MERGE_ID,
@@ -1250,6 +1265,13 @@ $$;
 ALTER FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) OWNER TO bctw;
 
 --
+-- Name: FUNCTION get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'retrieves telemetry for a user between the start and end parameters.';
+
+
+--
 -- Name: get_udf(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1272,6 +1294,13 @@ $$;
 
 
 ALTER FUNCTION bctw.get_udf(username text, udf_type text) OWNER TO bctw;
+
+--
+-- Name: FUNCTION get_udf(username text, udf_type text); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_udf(username text, udf_type text) IS 'fetches the user''s udfs of a given type';
+
 
 --
 -- Name: get_unattached_telemetry(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -1943,6 +1972,13 @@ $$;
 ALTER FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type) OWNER TO bctw;
 
 --
+-- Name: FUNCTION handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type) IS 'administrator function used to grant or deny an onboarding request.';
+
+
+--
 -- Name: is_valid(timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -2132,6 +2168,13 @@ CREATE TABLE bctw.animal (
 
 
 ALTER TABLE bctw.animal OWNER TO bctw;
+
+--
+-- Name: TABLE animal; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.animal IS 'the primary animal table. contains current and historical records.';
+
 
 --
 -- Name: COLUMN animal.critter_id; Type: COMMENT; Schema: bctw; Owner: bctw
@@ -2744,6 +2787,13 @@ CREATE TABLE bctw.collar (
 ALTER TABLE bctw.collar OWNER TO bctw;
 
 --
+-- Name: TABLE collar; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.collar IS 'the primary device/collar table. contains current and historical entries, with the validity of the row determined by its valid_from and valid_to timestamps.';
+
+
+--
 -- Name: COLUMN collar.collar_id; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
@@ -3202,73 +3252,11 @@ $$;
 ALTER FUNCTION bctw.link_collar_to_animal(stridir text, collarid uuid, critterid uuid, actual_start timestamp with time zone, data_life_start timestamp with time zone, actual_end timestamp with time zone, data_life_end timestamp with time zone) OWNER TO bctw;
 
 --
--- Name: link_collar_to_animal_bak(text, uuid, uuid, timestamp without time zone, timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+-- Name: FUNCTION link_collar_to_animal(stridir text, collarid uuid, critterid uuid, actual_start timestamp with time zone, data_life_start timestamp with time zone, actual_end timestamp with time zone, data_life_end timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.link_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validfrom timestamp without time zone DEFAULT now(), validto timestamp without time zone DEFAULT NULL::timestamp without time zone) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-userid integer := bctw.get_user_id(stridir);
-animal_assigned uuid;
-deviceid integer := (SELECT device_id FROM bctw.collar WHERE collar_id = collarid LIMIT 1);
-existing_deviceid integer;
-current_ts timestamptz := now();
-err text := 'unable to attach device:';
-cur_permission user_permission;
-BEGIN
-	-- check collar exists
-	IF deviceid IS NULL THEN 
-		RAISE EXCEPTION '% device ID % does not exist', err, deviceid;
-	END IF; 
+COMMENT ON FUNCTION bctw.link_collar_to_animal(stridir text, collarid uuid, critterid uuid, actual_start timestamp with time zone, data_life_start timestamp with time zone, actual_end timestamp with time zone, data_life_end timestamp with time zone) IS 'attaches a device to an animal';
 
-	-- check critter exists
-	IF NOT EXISTS (SELECT 1 FROM bctw.animal WHERE critter_id = critterid) THEN
-		RAISE EXCEPTION '% animal with ID % does not exist', err, critterid;
-	END IF;
-
-	-- is the device already assigned during this period?
-	animal_assigned := (
-	  select caa.critter_id from bctw.collar_animal_assignment caa
-	  where caa.collar_id = collarid
-	  and is_valid(validfrom, caa.valid_from::timestamp, caa.valid_to::timestamp)
-	);
-	if animal_assigned is not null then
-	  if critterid = animal_assigned then
-	    raise exception '% device with ID % is already attached to this animal', err, deviceid;
-	  else raise exception '% device is currently attached to an animal with ID %', err, animal_assigned;
-	  end if;
-	end if;
-
-	-- confirm animal isnt already assigned
-	existing_deviceid := (
-	  SELECT device_id
-	  FROM bctw.collar_animal_assignment caa
-	  JOIN bctw.collar c
-	  ON caa.collar_id = c.collar_id
-	  WHERE caa.critter_id = critterid AND is_valid(validfrom, caa.valid_from::timestamp, caa.valid_to::timestamp)
-	);
-	IF existing_deviceid IS NOT NULL THEN
-    RAISE EXCEPTION '% animal is currently attached device with ID %', err, existing_deviceid;
-	END IF;
-
-	-- confirm user has permission to change this linkage - must be an admin role or have owner permission - subowner cannot link!
-	cur_permission := bctw.get_user_animal_permission(userid, er.critter_id);
-	IF cur_permission IS NULL OR cur_permission = ANY('{"observer", "none", "editor"}'::user_permission[]) THEN
-	  RAISE EXCEPTION 'you do not have required permission to attach this animal - your permission is: "%"', cur_permission::TEXT;
-  END IF;
-	
-	RETURN query
-	WITH i AS (
-		INSERT INTO collar_animal_assignment (collar_id, critter_id, created_by_user_id, created_at, valid_from, valid_to)
-	 	 VALUES (collarid, critterid, userid, current_ts, validfrom, validto)
-	 	 RETURNING critter_id, collar_id, created_at, valid_from, valid_to
-	 ) SELECT row_to_json(t) FROM (SELECT * FROM i) t;
-END;
-$$;
-
-
-ALTER FUNCTION bctw.link_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validfrom timestamp without time zone, validto timestamp without time zone) OWNER TO bctw;
 
 --
 -- Name: proc_check_for_missing_telemetry(); Type: PROCEDURE; Schema: bctw; Owner: bctw
@@ -3357,6 +3345,13 @@ $$;
 
 
 ALTER PROCEDURE bctw.proc_check_for_missing_telemetry() OWNER TO bctw;
+
+--
+-- Name: PROCEDURE proc_check_for_missing_telemetry(); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON PROCEDURE bctw.proc_check_for_missing_telemetry() IS 'the device malfunction trigger handler.';
+
 
 --
 -- Name: proc_update_mortality_status(uuid, uuid); Type: PROCEDURE; Schema: bctw; Owner: bctw
@@ -3878,6 +3873,13 @@ $$;
 ALTER FUNCTION bctw.trg_process_vectronic_insert() OWNER TO bctw;
 
 --
+-- Name: FUNCTION trg_process_vectronic_insert(); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.trg_process_vectronic_insert() IS 'trigger handler for vectronic mortality alerts.';
+
+
+--
 -- Name: trg_update_animal_retroactively(); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -3910,6 +3912,13 @@ $$;
 
 
 ALTER FUNCTION bctw.trg_update_animal_retroactively() OWNER TO bctw;
+
+--
+-- Name: FUNCTION trg_update_animal_retroactively(); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.trg_update_animal_retroactively() IS 'on updates to the animal table, if the column is considered to be retroactive, update its historical records too. Currently the only retroactive column is sex.';
+
 
 --
 -- Name: unlink_collar_to_animal(text, uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -3968,58 +3977,11 @@ $$;
 ALTER FUNCTION bctw.unlink_collar_to_animal(stridir text, assignmentid uuid, actual_end timestamp with time zone, data_life_end timestamp with time zone) OWNER TO bctw;
 
 --
--- Name: unlink_collar_to_animal_bak(text, uuid, uuid, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+-- Name: FUNCTION unlink_collar_to_animal(stridir text, assignmentid uuid, actual_end timestamp with time zone, data_life_end timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-CREATE FUNCTION bctw.unlink_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validto timestamp with time zone DEFAULT now()) RETURNS SETOF json
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-userid integer:= bctw.get_user_id(stridir);
-cur_permission user_permission;
-BEGIN
-	IF validto IS NULL THEN
-		RAISE EXCEPTION 'a data life end date must be provided to remove a device';
-	END IF;
-	-- check collar exists
-	IF NOT EXISTS (SELECT 1 FROM bctw.collar WHERE collar_id = collarid)
-		THEN RAISE EXCEPTION 'collar with id % does not exist', collarid;
-	END IF;
-	-- check critter exists
-	IF NOT EXISTS(SELECT 1 FROM bctw.animal WHERE critter_id = critterid) 
-		THEN RAISE EXCEPTION 'animal with id % does not exist', critterid;
-	END IF;
-	-- confirm this collar is assigned to the critterid provided
-	IF NOT EXISTS (
-		SELECT 1 FROM collar_animal_assignment
-		WHERE collar_id = collarid
-		AND critter_id = critterid
-		AND (valid_to >= now() OR valid_to IS NULL)
-	)
-		THEN RAISE EXCEPTION 'invalid attempt to remove collar, perhaps collar_id % is attached to a different critter than the animal id provided', collarid;
-	END IF;
+COMMENT ON FUNCTION bctw.unlink_collar_to_animal(stridir text, assignmentid uuid, actual_end timestamp with time zone, data_life_end timestamp with time zone) IS 'removes a device from an animal';
 
-	-- confirm user has permission to remove the device - must be an admin role or have owner/subowner permission
-	cur_permission := bctw.get_user_animal_permission(userid, er.critter_id);
-	IF cur_permission IS NULL OR cur_permission = ANY('{"observer", "none"}'::user_permission[]) THEN
-	  RAISE EXCEPTION 'you do not have required permission to remove this device - your permission is: "%"', cur_permission::TEXT;
-  END IF;
-
-	RETURN query
-		WITH upd AS (
-			UPDATE collar_animal_assignment
-			SET valid_to = validto,
-				updated_at = now(),
-				updated_by_user_id = userid
-			WHERE collar_id = collarid AND critter_id = critterid
-			AND (valid_to >= now() OR valid_to IS NULL)
-			RETURNING collar_id, critter_id, valid_from, valid_to
-		) SELECT row_to_json(t) FROM (SELECT * FROM upd) t;
-END;
-$$;
-
-
-ALTER FUNCTION bctw.unlink_collar_to_animal_bak(stridir text, collarid uuid, critterid uuid, validto timestamp with time zone) OWNER TO bctw;
 
 --
 -- Name: update_attachment_data_life(text, uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4100,6 +4062,13 @@ $$;
 
 
 ALTER FUNCTION bctw.update_attachment_data_life(stridir text, assignmentid uuid, data_life_start timestamp with time zone, data_life_end timestamp with time zone) OWNER TO bctw;
+
+--
+-- Name: FUNCTION update_attachment_data_life(stridir text, assignmentid uuid, data_life_start timestamp with time zone, data_life_end timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.update_attachment_data_life(stridir text, assignmentid uuid, data_life_start timestamp with time zone, data_life_end timestamp with time zone) IS 'updates a collar_animal_attachment records data life. Data life can only be updated once, and considered to be updated if the attachment_start doesn''t match the valid_from or the attachment_end doesn''t match the valid_to fields.';
+
 
 --
 -- Name: update_user_telemetry_alert(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4254,6 +4223,13 @@ $$;
 ALTER FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) OWNER TO bctw;
 
 --
+-- Name: FUNCTION upsert_animal(stridir text, animaljson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.upsert_animal(stridir text, animaljson jsonb) IS 'handler for creating or editing an animal';
+
+
+--
 -- Name: upsert_bulk(text, text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -4310,6 +4286,13 @@ $$;
 
 
 ALTER FUNCTION bctw.upsert_bulk(username text, upsert_type text, records jsonb) OWNER TO bctw;
+
+--
+-- Name: FUNCTION upsert_bulk(username text, upsert_type text, records jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.upsert_bulk(username text, upsert_type text, records jsonb) IS 'handler for the CSV import of devices or animals.';
+
 
 --
 -- Name: upsert_collar(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4394,6 +4377,13 @@ $$;
 
 
 ALTER FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) OWNER TO bctw;
+
+--
+-- Name: FUNCTION upsert_collar(stridir text, collarjson jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.upsert_collar(stridir text, collarjson jsonb) IS 'handler for creating or editing collars';
+
 
 --
 -- Name: upsert_udf(text, jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -4548,6 +4538,13 @@ $$;
 ALTER FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text) OWNER TO bctw;
 
 --
+-- Name: FUNCTION upsert_user(stridir text, userjson json, roletype text); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.upsert_user(stridir text, userjson json, roletype text) IS 'creates or edits a BCTW user';
+
+
+--
 -- Name: upsert_vectronic_key(integer, text, text, text, integer); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -4627,6 +4624,15 @@ $$;
 ALTER FUNCTION bctw.vendor_insert_raw_lotek(rec jsonb) OWNER TO bctw;
 
 --
+-- Name: FUNCTION vendor_insert_raw_lotek(rec jsonb); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.vendor_insert_raw_lotek(rec jsonb) IS 'inserts json rows of lotek_collar_data type. ignores  insert of duplicate timeid
+returns a json object of the device_id and number of records inserted. 
+todo: include actual records inserted';
+
+
+--
 -- Name: vendor_insert_raw_vectronic(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -4702,7 +4708,7 @@ ALTER FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) OWNER TO bctw;
 --
 
 COMMENT ON FUNCTION bctw.vendor_insert_raw_vectronic(rec jsonb) IS 'inserts json rows of vectronic_collar_data type. ignores  insert of duplicate idposition. 
-returns a json object of the device_id and number of records insertd. 
+returns a json object of the device_id and number of records inserted. 
 todo: include actual records inserted';
 
 
@@ -5292,17 +5298,87 @@ COMMENT ON TABLE bctw.code IS 'This is the generic code table containing all cod
 
 
 --
+-- Name: COLUMN code.code_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_id IS 'primary serial key of the code table';
+
+
+--
+-- Name: COLUMN code.code_header_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_header_id IS 'the header from the code_header table that this code belongs to';
+
+
+--
+-- Name: COLUMN code.code_name; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_name IS 'the code value';
+
+
+--
+-- Name: COLUMN code.code_description; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_description IS 'the display value of the code';
+
+
+--
+-- Name: COLUMN code.code_sort_order; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_sort_order IS 'not in use';
+
+
+--
 -- Name: COLUMN code.valid_from; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON COLUMN bctw.code.valid_from IS 'Validity of this code from date.';
+COMMENT ON COLUMN bctw.code.valid_from IS 'Validity of this code from timestamp';
 
 
 --
 -- Name: COLUMN code.valid_to; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON COLUMN bctw.code.valid_to IS 'Validity of this code until this date';
+COMMENT ON COLUMN bctw.code.valid_to IS 'Validity of this code until this timestamp';
+
+
+--
+-- Name: COLUMN code.created_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.created_at IS 'timestamp the code was created at';
+
+
+--
+-- Name: COLUMN code.updated_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.updated_at IS 'timestamp the code was updated at';
+
+
+--
+-- Name: COLUMN code.created_by_user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.created_by_user_id IS 'user ID that created the code';
+
+
+--
+-- Name: COLUMN code.updated_by_user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.updated_by_user_id IS 'user ID that last updated the code';
+
+
+--
+-- Name: COLUMN code.code_description_long; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code.code_description_long IS 'a long version of the code_description, not always used';
 
 
 --
@@ -5411,6 +5487,13 @@ CREATE VIEW bctw.animal_v AS
 ALTER TABLE bctw.animal_v OWNER TO bctw;
 
 --
+-- Name: VIEW animal_v; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON VIEW bctw.animal_v IS 'view representing the animal table with all code integers replaced by their descriptions';
+
+
+--
 -- Name: api_vectronics_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -5430,6 +5513,20 @@ ALTER TABLE bctw.api_vectronics_collar_data OWNER TO bctw;
 --
 
 COMMENT ON TABLE bctw.api_vectronics_collar_data IS 'a table containing Vectronic collar IDs and keys. Used in the Vectronic cronjob to fetch collar data from the api.';
+
+
+--
+-- Name: COLUMN api_vectronics_collar_data.idcollar; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.api_vectronics_collar_data.idcollar IS 'the device ID of the Vectronic collar';
+
+
+--
+-- Name: COLUMN api_vectronics_collar_data.collartype; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.api_vectronics_collar_data.collartype IS 'the key used in the API to fetch device telemetry';
 
 
 --
@@ -5571,6 +5668,20 @@ COMMENT ON TABLE bctw.code_header IS 'Represents a code type. All codes belogn t
 
 
 --
+-- Name: COLUMN code_header.code_header_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.code_header_id IS 'primary serial key of the table';
+
+
+--
+-- Name: COLUMN code_header.code_category_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.code_category_id IS 'foreign key reference to the code category table';
+
+
+--
 -- Name: COLUMN code_header.code_header_name; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
@@ -5582,6 +5693,55 @@ COMMENT ON COLUMN bctw.code_header.code_header_name IS 'Technical name for the c
 --
 
 COMMENT ON COLUMN bctw.code_header.code_header_title IS 'Screen title when dropdown is presented.';
+
+
+--
+-- Name: COLUMN code_header.code_header_description; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.code_header_description IS 'long description of the code header';
+
+
+--
+-- Name: COLUMN code_header.valid_from; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.valid_from IS 'in the case of code tables, this field is like matches the created_at value';
+
+
+--
+-- Name: COLUMN code_header.valid_to; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.valid_to IS 'validity of the code header. if set to before now, the header is considered expired';
+
+
+--
+-- Name: COLUMN code_header.created_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.created_at IS 'timestamp the code header was created at';
+
+
+--
+-- Name: COLUMN code_header.updated_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.updated_at IS 'timestamp the code header was updated at';
+
+
+--
+-- Name: COLUMN code_header.created_by_user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.created_by_user_id IS 'user ID that created the code header';
+
+
+--
+-- Name: COLUMN code_header.updated_by_user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.code_header.updated_by_user_id IS 'user ID that last updated the code header';
 
 
 --
@@ -5631,7 +5791,49 @@ ALTER TABLE bctw.collar_animal_assignment OWNER TO bctw;
 -- Name: TABLE collar_animal_assignment; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON TABLE bctw.collar_animal_assignment IS 'A table that tracks devices assigned to a critters.';
+COMMENT ON TABLE bctw.collar_animal_assignment IS 'A table that tracks devices assigned to a critters. The valid "data life" of the attachment is considered the range of the valid_from and valid_to timestamps. for exporting purposes the biologist may be interested in timestamps outside of this range, ex. when an animal is sedated, it''s telemetry for a time can be considered invalid. For this purpose, the attachment_start/end were added as ''bounding'' timestamps.';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.assignment_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.assignment_id IS 'primary uuid key of the record';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.collar_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.collar_id IS 'collar_id of the attached animal';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.critter_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.critter_id IS 'critter_id of the attached animal';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.created_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.created_at IS 'timestamp this record was created at';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.created_by_user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.created_by_user_id IS 'ID of the user that created the attachment';
+
+
+--
+-- Name: COLUMN collar_animal_assignment.updated_at; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.collar_animal_assignment.updated_at IS 'timestamp of the last modification to the record';
 
 
 --
@@ -5796,6 +5998,13 @@ CREATE VIEW bctw.collar_v AS
 ALTER TABLE bctw.collar_v OWNER TO bctw;
 
 --
+-- Name: VIEW collar_v; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON VIEW bctw.collar_v IS 'view representing the collar table with all code integers replaced by their descriptions';
+
+
+--
 -- Name: historical_telemetry; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -5818,7 +6027,7 @@ ALTER TABLE bctw.historical_telemetry OWNER TO bctw;
 -- Name: TABLE historical_telemetry; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON TABLE bctw.historical_telemetry IS 'imported telemetry that does not belong to a vendor.';
+COMMENT ON TABLE bctw.historical_telemetry IS 'imported telemetry that does not belong to a vendor. Not currently in use in the BCTW application as further business analysis / work is needed to determine how historical telemetry should be imported.';
 
 
 --
@@ -5860,6 +6069,27 @@ ALTER TABLE bctw.lotek_collar_data OWNER TO bctw;
 --
 
 COMMENT ON TABLE bctw.lotek_collar_data IS 'raw telemetry data from Lotek';
+
+
+--
+-- Name: COLUMN lotek_collar_data.deviceid; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.lotek_collar_data.deviceid IS 'the Lotek device ID';
+
+
+--
+-- Name: COLUMN lotek_collar_data.recdatetime; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.lotek_collar_data.recdatetime IS 'timestamp the telemetry was recorded';
+
+
+--
+-- Name: COLUMN lotek_collar_data.timeid; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.lotek_collar_data.timeid IS 'a string combination of the device ID and recorded timestamp. Acts as the primary key for the table';
 
 
 --
@@ -5927,6 +6157,20 @@ COMMENT ON TABLE bctw.vectronics_collar_data IS 'raw telemetry data from Vectron
 
 
 --
+-- Name: COLUMN vectronics_collar_data.idposition; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.vectronics_collar_data.idposition IS 'acts as the primary key of the table';
+
+
+--
+-- Name: COLUMN vectronics_collar_data.idcollar; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.vectronics_collar_data.idcollar IS 'Vectronic device ID';
+
+
+--
 -- Name: vendor_merge_view_no_critter; Type: MATERIALIZED VIEW; Schema: bctw; Owner: bctw
 --
 
@@ -5968,7 +6212,7 @@ ALTER TABLE bctw.vendor_merge_view_no_critter OWNER TO bctw;
 -- Name: MATERIALIZED VIEW vendor_merge_view_no_critter; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON MATERIALIZED VIEW bctw.vendor_merge_view_no_critter IS 'Materialized view containing data merged from multiple vendor tables. Additional information from the collar table information, but all animal data is excluded.';
+COMMENT ON MATERIALIZED VIEW bctw.vendor_merge_view_no_critter IS 'Materialized view containing data merged from multiple vendor tables. Additional information from the collar table, but all animal data is excluded.';
 
 
 --
@@ -5996,6 +6240,13 @@ CREATE MATERIALIZED VIEW bctw.latest_transmissions AS
 
 
 ALTER TABLE bctw.latest_transmissions OWNER TO bctw;
+
+--
+-- Name: MATERIALIZED VIEW latest_transmissions; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON MATERIALIZED VIEW bctw.latest_transmissions IS 'materialized view that contains the most recent timestamp that a device had telemetry for';
+
 
 --
 -- Name: onboarding; Type: TABLE; Schema: bctw; Owner: bctw
@@ -6026,6 +6277,48 @@ ALTER TABLE bctw.onboarding OWNER TO bctw;
 --
 
 COMMENT ON TABLE bctw.onboarding IS 'used for onboarding new users to BCTW';
+
+
+--
+-- Name: COLUMN onboarding.onboarding_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.onboarding_id IS 'primary serial key of the onboarding table';
+
+
+--
+-- Name: COLUMN onboarding.domain; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.domain IS 'either IDIR or BCEID';
+
+
+--
+-- Name: COLUMN onboarding.access; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.access IS 'current status of the onboard request';
+
+
+--
+-- Name: COLUMN onboarding.reason; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.reason IS 'can be used by an administrator as a reason for denied access';
+
+
+--
+-- Name: COLUMN onboarding.valid_to; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.valid_to IS 'null until the user onboard request is handled by an administrator';
+
+
+--
+-- Name: COLUMN onboarding.role_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.onboarding.role_type IS 'role type of the user, should be defaulted to observer role';
 
 
 --
@@ -6162,6 +6455,13 @@ CREATE TABLE bctw.species (
 ALTER TABLE bctw.species OWNER TO bctw;
 
 --
+-- Name: TABLE species; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.species IS 'a special ''code'' table for species, as business required more fields stored and exported than the existing code table.';
+
+
+--
 -- Name: telemetry_sensor_alert; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -6182,6 +6482,13 @@ CREATE TABLE bctw.telemetry_sensor_alert (
 
 
 ALTER TABLE bctw.telemetry_sensor_alert OWNER TO bctw;
+
+--
+-- Name: TABLE telemetry_sensor_alert; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.telemetry_sensor_alert IS 'user alert table used to handle telemetry mortality and malfunction device alerts.';
+
 
 --
 -- Name: COLUMN telemetry_sensor_alert.alert_id; Type: COMMENT; Schema: bctw; Owner: bctw
@@ -6315,6 +6622,13 @@ COMMENT ON COLUMN bctw."user".domain IS 'idir or bceid';
 
 
 --
+-- Name: COLUMN "user".username; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw."user".username IS 'the user''s bceid or idir, whichever is used';
+
+
+--
 -- Name: user_animal_assignment; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -6342,6 +6656,34 @@ COMMENT ON TABLE bctw.user_animal_assignment IS 'Tracks user permissions to anim
 
 
 --
+-- Name: COLUMN user_animal_assignment.assignment_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_animal_assignment.assignment_id IS 'primary uuid key of the assignment';
+
+
+--
+-- Name: COLUMN user_animal_assignment.user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_animal_assignment.user_id IS 'foreign key referencing the user.id';
+
+
+--
+-- Name: COLUMN user_animal_assignment.critter_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_animal_assignment.critter_id IS 'foreign key referencing the animal.critter_id';
+
+
+--
+-- Name: COLUMN user_animal_assignment.permission_type; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_animal_assignment.permission_type IS 'the user/critter permission type';
+
+
+--
 -- Name: user_defined_field; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -6355,6 +6697,48 @@ CREATE TABLE bctw.user_defined_field (
 
 
 ALTER TABLE bctw.user_defined_field OWNER TO bctw;
+
+--
+-- Name: TABLE user_defined_field; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.user_defined_field IS 'user defined field table. Currently in use to store: custom animal groups that a user can save in the map view. Collective units.';
+
+
+--
+-- Name: COLUMN user_defined_field.udf_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_defined_field.udf_id IS 'primary serial key of the udf table';
+
+
+--
+-- Name: COLUMN user_defined_field.user_id; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_defined_field.user_id IS 'foreign key referencing the user.id column';
+
+
+--
+-- Name: COLUMN user_defined_field.udf; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_defined_field.udf IS 'json stored udf';
+
+
+--
+-- Name: COLUMN user_defined_field.valid_from; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_defined_field.valid_from IS 'timestamp the udf was created';
+
+
+--
+-- Name: COLUMN user_defined_field.valid_to; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON COLUMN bctw.user_defined_field.valid_to IS 'if not null, the udf is no longer in use';
+
 
 --
 -- Name: user_defined_field_udf_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
@@ -6646,6 +7030,13 @@ CREATE VIEW bctw_dapi_v1.alert_v AS
 
 
 ALTER TABLE bctw_dapi_v1.alert_v OWNER TO bctw;
+
+--
+-- Name: VIEW alert_v; Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+COMMENT ON VIEW bctw_dapi_v1.alert_v IS 'user telemetry alerts from bctw.telemetry_sensor_alert table';
+
 
 --
 -- Name: animal_historic_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
@@ -7524,10 +7915,26 @@ CREATE TRIGGER alert_notify_api_sms_trg AFTER INSERT ON bctw.telemetry_sensor_al
 
 
 --
+-- Name: TRIGGER alert_notify_api_sms_trg ON telemetry_sensor_alert; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER alert_notify_api_sms_trg ON bctw.telemetry_sensor_alert IS 'trigger that occurs on a new insertion to the table. The trg_new_alert sends a notification to a listening API that this event occurred.';
+
+
+--
 -- Name: animal animal_insert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
 CREATE TRIGGER animal_insert_trg AFTER INSERT ON bctw.animal REFERENCING NEW TABLE AS inserted FOR EACH ROW EXECUTE FUNCTION bctw.trg_update_animal_retroactively();
+
+
+--
+-- Name: TRIGGER animal_insert_trg ON animal; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER animal_insert_trg ON bctw.animal IS 'trigger for handling "retroactive metadta", or animal metadata that should be cascaded through it''s history when modified. Ex. When an animal''s sex is changed, it is probably because an input error was made and the biologist want''s to change the entire history of the animal. 
+
+Calls the trg_update_animal_retroactively trigger handler function.';
 
 
 --
@@ -7552,6 +7959,13 @@ CREATE TRIGGER lotek_alert_trg AFTER INSERT ON bctw.telemetry_sensor_alert REFER
 
 
 --
+-- Name: TRIGGER lotek_alert_trg ON telemetry_sensor_alert; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER lotek_alert_trg ON bctw.telemetry_sensor_alert IS 'lotek alerts are retrieved from the vendor API and inserted directly to this table.';
+
+
+--
 -- Name: user user_onboarded_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
@@ -7559,10 +7973,24 @@ CREATE TRIGGER user_onboarded_trg AFTER INSERT ON bctw."user" REFERENCING NEW TA
 
 
 --
+-- Name: TRIGGER user_onboarded_trg ON "user"; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER user_onboarded_trg ON bctw."user" IS 'new user requests no longer fill the bceid/idir fields directly, but supply username. This trigger updates the respective field based on the domain type.';
+
+
+--
 -- Name: vectronics_collar_data vectronic_alert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
 CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 1)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();
+
+
+--
+-- Name: TRIGGER vectronic_alert_trg ON vectronics_collar_data; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TRIGGER vectronic_alert_trg ON bctw.vectronics_collar_data IS 'consider an insertion to the table a mortality alert if the idmortalitystatus record is 1.';
 
 
 --
