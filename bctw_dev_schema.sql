@@ -636,7 +636,7 @@ BEGIN
     RAISE exception 'unable find user with idir %', stridir;
   END IF;
   
- -- todo: collar access permission??
+ -- todo: check collar access permission?
  current_ts = now();
 
  FOREACH cid IN ARRAY ids LOOP
@@ -654,8 +654,6 @@ BEGIN
 		valid_to = current_ts
 	where collar_id = cid
 	and bctw.is_valid(valid_to);
-
-  -- todo: expire/delete the user/device link
 
 	-- expire the collar record
 	update bctw.collar set
@@ -678,8 +676,7 @@ ALTER FUNCTION bctw.delete_collar(stridir text, ids uuid[]) OWNER TO bctw;
 -- Name: FUNCTION delete_collar(stridir text, ids uuid[]); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.delete_collar(stridir text, ids uuid[]) IS 'Expires the list of collar IDs. If a critter is attached to the collar, it will be removed.
-todo: expire/delete the user/device link';
+COMMENT ON FUNCTION bctw.delete_collar(stridir text, ids uuid[]) IS 'Expires the list of collar IDs. If a critter is attached to the collar, it will be removed.';
 
 
 --
@@ -703,7 +700,7 @@ BEGIN
     RAISE EXCEPTION 'you must be an administrator to perform this action';
   END IF;
  
- -- todo - should this be deleted? or add valid_from/to columns to user_role_xref table?
+ -- remove their role from the user_role_xref table
  DELETE FROM bctw.user_role_xref
  WHERE user_id = useridtodelete;
 
@@ -746,9 +743,9 @@ CREATE FUNCTION bctw.execute_permission_request(stridir text, requestid integer,
     AS $$
 DECLARE
   userid integer := bctw.get_user_id(stridir);     -- the admin user granting the request
-  current_ts timestamp without time ZONE := now();
-  userrole bctw.role_type;											
-  rr record;																			 -- the fetched request permission record
+  current_ts timestamp without time ZONE := now(); -- 
+  userrole bctw.role_type;						   -- 		
+  rr record;									   -- the fetched request permission record
 BEGIN
 	
   IF userid IS NULL THEN
@@ -764,6 +761,7 @@ BEGIN
 
  SELECT * FROM permission_request INTO rr WHERE request_id = requestid;
 
+ -- confirm the permission request is still valid
  IF rr IS NULL OR NOT is_valid(rr.valid_to) THEN 
  	RAISE EXCEPTION 'request % is missing or expired', requestid;
  END IF; 
@@ -772,8 +770,7 @@ BEGIN
  -- that accepts an additional userid to be used as the requestor
  IF isgrant THEN 
 	 PERFORM bctw.grant_critter_to_user(
-	 	 stridir,
-	 	 -- use the requestor as the user performing the grant so it can be tracked
+	   stridir,  -- use the requestor as the user performing the grant so it can be tracked
 	   rr.requested_by_user_id, 
 	   UNNEST(rr.user_id_list),
 	   -- no longer an array, so convert it to one
@@ -781,10 +778,10 @@ BEGIN
 	 );
  END IF;
 	
- -- expire the request
+ -- expire the request, updating the status and denied reason if supplied
  UPDATE permission_request
  SET 
- 	 status = CASE WHEN isgrant THEN 'granted'::onboarding_status ELSE 'denied'::onboarding_status END,
+   status = CASE WHEN isgrant THEN 'granted'::onboarding_status ELSE 'denied'::onboarding_status END,
    was_denied_reason = CASE WHEN isgrant THEN NULL ELSE denycomment END,
    valid_to = current_ts
  WHERE request_id = rr.request_id;
@@ -803,7 +800,7 @@ ALTER FUNCTION bctw.execute_permission_request(stridir text, requestid integer, 
 -- Name: FUNCTION execute_permission_request(stridir text, requestid integer, isgrant boolean, denycomment text); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.execute_permission_request(stridir text, requestid integer, isgrant boolean, denycomment text) IS 'rejects or approves a user-critter permission request';
+COMMENT ON FUNCTION bctw.execute_permission_request(stridir text, requestid integer, isgrant boolean, denycomment text) IS 'rejects or approves a user-critter permission request. User performing the grant/deny must be administrator,';
 
 
 --
@@ -853,7 +850,7 @@ ALTER FUNCTION bctw.get_animal_collar_assignment_history(stridir text, animalid 
 -- Name: FUNCTION get_animal_collar_assignment_history(stridir text, animalid uuid); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.get_animal_collar_assignment_history(stridir text, animalid uuid) IS 'for a given critter_id, retrieve it''s collar assignment history from the bctw.collar_animal_assignment table';
+COMMENT ON FUNCTION bctw.get_animal_collar_assignment_history(stridir text, animalid uuid) IS 'for a given critter_id, retrieve it''s present and past device assignments from the collar_animal_assignment table';
 
 
 --
@@ -943,6 +940,13 @@ $$;
 
 
 ALTER FUNCTION bctw.get_code_as_json(codeid integer) OWNER TO bctw;
+
+--
+-- Name: FUNCTION get_code_as_json(codeid integer); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_code_as_json(codeid integer) IS 'for a provided valid code_id, retrieve a json object with properties id, code, description';
+
 
 --
 -- Name: get_code_id(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -1219,7 +1223,6 @@ BEGIN
 	 			'capture_date', 	a.capture_date -- fixme (should be the oldest capture date for this particular device id assignment)
 	 	 )
  	  ) AS geojson
--- 	  , (select code_name from bctw.code where code_id = a.map_colour)::text as map_colour
  	
   FROM bctw.vendor_merge_view_no_critter vmv
     JOIN bctw.collar c
@@ -1257,7 +1260,6 @@ BEGIN
 			OR a.owned_by_user_id = userid
 			AND is_valid(a.valid_to)
     );
---    AND bctw.is_valid(vmv.date_recorded::timestamp, caa.valid_from::timestamp, caa.valid_to::timestamp);
 END;
 $$;
 
@@ -1268,7 +1270,7 @@ ALTER FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zo
 -- Name: FUNCTION get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'retrieves telemetry for a user between the start and end parameters.';
+COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'retrieves telemetry for a user between the start and end parameters. Used in the map view. Most of the data is contained iwthin the geojson object, aka a Feature in the frontend.';
 
 
 --
