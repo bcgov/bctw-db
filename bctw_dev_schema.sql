@@ -3,7 +3,7 @@
 --
 
 -- Dumped from database version 12.5
--- Dumped by pg_dump version 13.4 (Ubuntu 13.4-1.pgdg18.04+1)
+-- Dumped by pg_dump version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1087,28 +1087,6 @@ ALTER FUNCTION bctw.get_code_value(codeheader text, description text) OWNER TO b
 --
 
 COMMENT ON FUNCTION bctw.get_code_value(codeheader text, description text) IS 'given a code description, attempts to retrieve the code (code.code_name). returns the original parameter if it does not exist.';
-
-
---
--- Name: get_last_device_transmission(uuid); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE FUNCTION bctw.get_last_device_transmission(collarid uuid) RETURNS TABLE(latest_transmission timestamp with time zone)
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	RETURN query SELECT date_recorded FROM latest_transmissions WHERE collar_id = collarid;
-end;
-$$;
-
-
-ALTER FUNCTION bctw.get_last_device_transmission(collarid uuid) OWNER TO bctw;
-
---
--- Name: FUNCTION get_last_device_transmission(collarid uuid); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.get_last_device_transmission(collarid uuid) IS 'queries the latest_transmission materialized for for the timestamp of the latest telemetry for the provided collar_id.';
 
 
 --
@@ -3431,7 +3409,7 @@ ALTER FUNCTION bctw.set_user_role(stridir text, roletype text) OWNER TO bctw;
 -- Name: FUNCTION set_user_role(stridir text, roletype text); Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON FUNCTION bctw.set_user_role(stridir text, roletype text) IS 'sets a user role. currently replaces the old user role if the user already has one. not exposed to api';
+COMMENT ON FUNCTION bctw.set_user_role(stridir text, roletype text) IS 'sets a user role. currently replaces the old user role if the user already has one. not exposed to api. Note that this function does not currently remove animal permissions.';
 
 
 --
