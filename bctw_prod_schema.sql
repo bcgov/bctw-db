@@ -7019,8 +7019,8 @@ CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
    FROM bctw.collar
   WHERE ((collar.device_make = ( SELECT code.code_id
            FROM bctw.code
-          WHERE ((code.code_description)::text = 'Vectronic'::text))) AND (NOT (collar.device_id IN ( SELECT api_vectronics_collar_data_bak.idcollar
-           FROM bctw.api_vectronics_collar_data_bak))));
+          WHERE ((code.code_description)::text = 'Vectronic'::text))) AND (NOT (collar.device_id IN ( SELECT api_vectronics_collar_data.idcollar
+           FROM bctw.api_vectronics_collar_data))));
 
 
 ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
@@ -7748,13 +7748,6 @@ GRANT SELECT ON TABLE bctw_dapi_v1.user_animal_assignment_v TO bctw_ro;
 --
 
 GRANT SELECT ON TABLE bctw_dapi_v1.user_v TO bctw_ro;
-
-
---
--- Name: TABLE vectronic_devices_without_keyx_entries; Type: ACL; Schema: bctw_dapi_v1; Owner: bctw
---
-
-GRANT SELECT ON TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries TO bctw_ro;
 
 
 --
