@@ -3599,7 +3599,9 @@ CREATE FUNCTION bctw.trg_new_alert() RETURNS trigger
 				JOIN bctw.USER u ON u.id = uaa.user_id
 				JOIN animal_v a ON uaa.critter_id = a.critter_id
 				WHERE uaa.valid_to IS NULL
-				AND uaa.permission_type = ANY('{editor, manager}')
+        -- only send notifications to managers
+				-- AND uaa.permission_type = ANY('{editor, manager}')
+				AND uaa.permission_type = ANY('{manager}')
 				AND uaa.critter_id = critterid
 			  ) t));
 			 
