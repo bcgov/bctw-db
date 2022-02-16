@@ -240,7 +240,7 @@ CREATE FUNCTION bctw.trg_process_vectronic_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 -- trigger name vectronics_collar_data -> vectronic_alert_trg
--- trigger only occurs when the idmortalitystatus is 1 (a mortality is detected)
+-- trigger only occurs when the idmortalitystatus is 5 (a mortality is detected)
 	DECLARE 
 	 new_record record;
 	 existing_collar_id uuid;
@@ -1557,4 +1557,4 @@ CREATE TRIGGER ats_insert_trg AFTER INSERT ON bctw.ats_collar_data REFERENCING N
 COMMENT ON TRIGGER ats_insert_trg ON bctw.ats_collar_data IS 'when new telemetry data is received from the API cronjob, run the trigger handler trg_process_ats_insert if the record has a mortality';
 CREATE TRIGGER lotek_alert_trg AFTER INSERT ON bctw.telemetry_sensor_alert REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.device_make = 'Lotek'::text)) EXECUTE FUNCTION bctw.trg_process_lotek_insert();
 CREATE TRIGGER user_onboarded_trg AFTER INSERT ON bctw."user" REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT EXECUTE FUNCTION bctw.trg_process_new_user();
-CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 1)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();
+CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 5)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();

@@ -3745,7 +3745,7 @@ CREATE FUNCTION bctw.trg_process_vectronic_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 -- trigger name vectronics_collar_data -> vectronic_alert_trg
--- trigger only occurs when the idmortalitystatus is 1 (a mortality is detected)
+-- trigger only occurs when the idmortalitystatus is 5 (a mortality is detected)
 	DECLARE 
 	 new_record record;
 	 existing_collar_id uuid;
@@ -7406,7 +7406,7 @@ CREATE TRIGGER user_onboarded_trg AFTER INSERT ON bctw."user" REFERENCING NEW TA
 -- Name: vectronics_collar_data vectronic_alert_trg; Type: TRIGGER; Schema: bctw; Owner: bctw
 --
 
-CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 1)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();
+CREATE TRIGGER vectronic_alert_trg AFTER INSERT ON bctw.vectronics_collar_data REFERENCING NEW TABLE AS new_table FOR EACH ROW WHEN ((new.idmortalitystatus = 5)) EXECUTE FUNCTION bctw.trg_process_vectronic_insert();
 
 
 --
