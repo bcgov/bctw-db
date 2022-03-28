@@ -7802,6 +7802,403 @@ CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
 ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
 
 --
+-- Name: user_animal_assignment_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE VIEW bctw_dapi_v1.user_animal_assignment_v AS
+ SELECT ua.user_id AS requested_for_id,
+    ( SELECT "user".email
+           FROM bctw."user"
+          WHERE ("user".id = ua.user_id)) AS requested_for_email,
+    ( SELECT a.animal_id
+           FROM bctw.animal a
+          WHERE ((a.critter_id = ua.critter_id) AND bctw.is_valid(a.valid_to))) AS animal_id,
+    ( SELECT a.wlh_id
+           FROM bctw.animal a
+          WHERE ((a.critter_id = ua.critter_id) AND bctw.is_valid(a.valid_to))) AS wlh_id,
+    ua.valid_from AS requested_at,
+    ua.created_by_user_id AS requested_by_id,
+    ( SELECT COALESCE("user".idir, "user".bceid) AS "coalesce"
+           FROM bctw."user"
+          WHERE ("user".id = ua.user_id)) AS requested_by,
+    ua.permission_type
+   FROM bctw.user_animal_assignment ua
+  WHERE bctw.is_valid(ua.valid_to);
+
+
+ALTER TABLE bctw_dapi_v1.user_animal_assignment_v OWNER TO bctw;
+
+--
+-- Name: VIEW user_animal_assignment_v; Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+COMMENT ON VIEW bctw_dapi_v1.user_animal_assignment_v IS 'A bctw.user_animal_assignment table view for current user-critter assignments.';
+
+
+--
+-- Name: user_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE VIEW bctw_dapi_v1.user_v AS
+ SELECT u.id,
+    u.domain,
+    u.username,
+    u.idir,
+    u.bceid,
+    u.firstname,
+    u.lastname,
+    u.email,
+    u.phone,
+    (urt.role_type)::text AS role_type,
+    (EXISTS ( SELECT 1
+           FROM bctw.animal
+          WHERE (animal.owned_by_user_id = u.id))) AS is_owner,
+    u.created_at,
+    u.created_by_user_id,
+    u.updated_at
+   FROM ((bctw."user" u
+     LEFT JOIN bctw.user_role_xref rx ON ((rx.user_id = u.id)))
+     LEFT JOIN bctw.user_role_type urt ON ((urt.role_id = rx.role_id)))
+  WHERE bctw.is_valid(u.valid_to);
+
+
+ALTER TABLE bctw_dapi_v1.user_v OWNER TO bctw;
+
+--
+-- Name: vectronic_devices_without_keyx_entries; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
+ SELECT collar.collar_id,
+    collar.collar_transaction_id,
+    collar.camera_device_id,
+    collar.device_id,
+    collar.device_deployment_status,
+    collar.device_make,
+    collar.device_malfunction_type,
+    collar.device_model,
+    collar.device_status,
+    collar.device_type,
+    collar.dropoff_device_id,
+    collar.dropoff_frequency,
+    collar.dropoff_frequency_unit,
+    collar.fix_interval,
+    collar.fix_interval_rate,
+    collar.frequency,
+    collar.frequency_unit,
+    collar.malfunction_date,
+    collar.activation_comment,
+    collar.first_activation_month,
+    collar.first_activation_year,
+    collar.retrieval_date,
+    collar.retrieved,
+    collar.satellite_network,
+    collar.device_comment,
+    collar.activation_status,
+    collar.created_at,
+    collar.created_by_user_id,
+    collar.updated_at,
+    collar.updated_by_user_id,
+    collar.valid_from,
+    collar.valid_to,
+    collar.owned_by_user_id,
+    collar.offline_date,
+    collar.offline_type,
+    collar.device_condition,
+    collar.retrieval_comment,
+    collar.malfunction_comment,
+    collar.offline_comment,
+    collar.mortality_mode,
+    collar.mortality_period_hr,
+    collar.dropoff_mechanism,
+    collar.implant_device_id
+   FROM bctw.collar
+  WHERE ((collar.device_make = ( SELECT code.code_id
+           FROM bctw.code
+          WHERE ((code.code_description)::text = 'Vectronic'::text))) AND (NOT (collar.device_id IN ( SELECT api_vectronics_collar_data.idcollar
+           FROM bctw.api_vectronics_collar_data))));
+
+
+ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
+
+
+--
+-- Name: telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.telemetry_v
+AS SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM get_normalized_telemetry('ats'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+UNION ALL
+ SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM get_normalized_telemetry('lotek'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+UNION ALL
+ SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM get_normalized_telemetry('vectronic'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode);
+
+COMMENT ON VIEW bctw.telemetry_v IS 'View for the normalized collar data.
+Uses get_normalized_telemetry function to retrieve data.
+Union all does NOT check for duplicates. This is better for performance.';
+
+-- Permissions
+
+ALTER TABLE bctw.telemetry_v OWNER TO bctw;
+GRANT ALL ON TABLE bctw.telemetry_v TO bctw;
+
+--
+-- Name: unassigned_telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.unassigned_telemetry_v
+AS SELECT DISTINCT lc.collar_id,
+    l.deviceid,
+    'lotek'::text AS vendor
+   FROM collar lc
+     RIGHT JOIN lotek_collar_data l ON l.deviceid = lc.device_id
+  WHERE lc.device_id IS NULL
+UNION ALL
+ SELECT DISTINCT vc.collar_id,
+    v.idcollar AS deviceid,
+    'vectronic'::text AS vendor
+   FROM collar vc
+     RIGHT JOIN vectronics_collar_data v ON v.idcollar = vc.device_id
+  WHERE vc.device_id IS NULL
+UNION ALL
+ SELECT DISTINCT ac.collar_id,
+    a.collarserialnumber AS deviceid,
+    'ats'::text AS vendor
+   FROM collar ac
+     RIGHT JOIN ats_collar_data a ON a.collarserialnumber = ac.device_id
+  WHERE ac.device_id IS NULL;
+
+ COMMENT ON VIEW bctw.unassigned_telemetry_v IS 'View for unassigned telemetry that has not been assigned a device_id';
+
+-- Permissions
+
+ALTER TABLE bctw.unassigned_telemetry_v OWNER TO bctw;
+GRANT ALL ON TABLE bctw.unassigned_telemetry_v TO bctw;
+
+--
+-- Name: collar_current_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.collar_current_v
+AS SELECT collar_v.collar_id,
+    collar_v.collar_transaction_id,
+    collar_v.camera_device_id,
+    collar_v.device_id,
+    collar_v.device_deployment_status,
+    collar_v.device_make,
+    collar_v.device_malfunction_type,
+    collar_v.device_model,
+    collar_v.device_status,
+    collar_v.device_type,
+    collar_v.dropoff_device_id,
+    collar_v.dropoff_frequency,
+    collar_v.dropoff_mechanism,
+    collar_v.dropoff_frequency_unit,
+    collar_v.fix_interval,
+    collar_v.fix_interval_rate,
+    collar_v.frequency,
+    collar_v.implant_device_id,
+    collar_v.frequency_unit,
+    collar_v.mortality_mode,
+    collar_v.mortality_period_hr,
+    collar_v.malfunction_date,
+    collar_v.malfunction_comment,
+    collar_v.activation_status,
+    collar_v.activation_comment,
+    collar_v.first_activation_month,
+    collar_v.first_activation_year,
+    collar_v.retrieval_date,
+    collar_v.retrieved,
+    collar_v.retrieval_comment,
+    collar_v.satellite_network,
+    collar_v.device_comment,
+    collar_v.offline_date,
+    collar_v.offline_type,
+    collar_v.offline_comment,
+    collar_v.device_condition,
+    collar_v.created_at,
+    collar_v.created_by_user_id,
+    collar_v.valid_from,
+    collar_v.valid_to,
+    collar_v.owned_by_user_id
+   FROM collar_v
+  WHERE collar_v.valid_to IS NULL;
+
+COMMENT ON VIEW bctw.collar_current_v IS 'Current view of all the devices in the system.
+Where valid_to IS NULL.';
+
+-- Permissions
+
+ALTER TABLE bctw.collar_current_v OWNER TO bctw;
+GRANT ALL ON TABLE bctw.collar_current_v TO bctw;
+
+--
+-- Name: animal_current_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.animal_current_v
+AS SELECT animal_v.critter_id,
+    animal_v.critter_transaction_id,
+    animal_v.animal_id,
+    animal_v.animal_status,
+    animal_v.associated_animal_id,
+    animal_v.associated_animal_relationship,
+    animal_v.capture_comment,
+    animal_v.capture_date,
+    animal_v.capture_latitude,
+    animal_v.capture_longitude,
+    animal_v.capture_utm_easting,
+    animal_v.capture_utm_northing,
+    animal_v.capture_utm_zone,
+    animal_v.collective_unit,
+    animal_v.animal_colouration,
+    animal_v.ear_tag_left_id,
+    animal_v.ear_tag_right_id,
+    animal_v.ear_tag_left_colour,
+    animal_v.ear_tag_right_colour,
+    animal_v.estimated_age,
+    animal_v.juvenile_at_heel,
+    animal_v.juvenile_at_heel_count,
+    animal_v.life_stage,
+    animal_v.map_colour,
+    animal_v.mortality_comment,
+    animal_v.mortality_date,
+    animal_v.mortality_latitude,
+    animal_v.mortality_longitude,
+    animal_v.mortality_utm_easting,
+    animal_v.mortality_utm_northing,
+    animal_v.mortality_utm_zone,
+    animal_v.proximate_cause_of_death,
+    animal_v.ultimate_cause_of_death,
+    animal_v.population_unit,
+    animal_v.recapture,
+    animal_v.region,
+    animal_v.release_comment,
+    animal_v.release_date,
+    animal_v.release_latitude,
+    animal_v.release_longitude,
+    animal_v.release_utm_easting,
+    animal_v.release_utm_northing,
+    animal_v.release_utm_zone,
+    animal_v.sex,
+    animal_v.species,
+    animal_v.translocation,
+    animal_v.wlh_id,
+    animal_v.animal_comment,
+    animal_v.pcod_predator_species,
+    animal_v.ucod_predator_species,
+    animal_v.predator_known,
+    animal_v.captivity_status,
+    animal_v.mortality_captivity_status,
+    animal_v.pcod_confidence,
+    animal_v.ucod_confidence,
+    animal_v.mortality_report,
+    animal_v.mortality_investigation,
+    animal_v.valid_from,
+    animal_v.valid_to,
+    animal_v.created_at,
+    animal_v.created_by_user_id,
+    animal_v.owned_by_user_id
+   FROM animal_v
+  WHERE animal_v.valid_to IS NULL;
+
+ COMMENT ON VIEW bctw.animal_current_v IS 'Current view of all the animals in the system.
+Where valid_to IS NULL.';
+-- Permissions
+
+ALTER TABLE bctw.animal_current_v OWNER TO bctw;
+GRANT ALL ON TABLE bctw.animal_current_v TO bctw;
+
+--
+-- Name: collar_ids_with_no_null_valid_to; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.collar_ids_with_no_null_valid_to
+AS SELECT collar_v.collar_id,
+    collar_v.device_id,
+    collar_v.device_make,
+    collar_v.device_status,
+    collar_v.valid_to
+   FROM collar_v
+  WHERE id_has_null_valid_to(collar_v.collar_id, 'collar_v'::text) = false;
+
+-- Permissions
+
+ALTER TABLE bctw.collar_ids_with_no_null_valid_to OWNER TO bctw;
+GRANT ALL ON TABLE bctw.collar_ids_with_no_null_valid_to TO bctw;
+
+ COMMENT ON VIEW bctw.collar_ids_with_no_null_valid_to IS 'View for all collar_ids that have no null_valid_to records. Mostly malfunctions/offline devices';
+
+--
 -- Name: code code_id; Type: DEFAULT; Schema: bctw; Owner: bctw
 --
 
