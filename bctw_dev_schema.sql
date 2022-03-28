@@ -5314,6 +5314,194 @@ ALTER FUNCTION bctw_dapi_v1.get_users(stridir text) OWNER TO bctw;
 
 COMMENT ON FUNCTION bctw_dapi_v1.get_users(stridir text) IS 'returns a list of user data, must have the admin type role';
 
+--
+-- Name: convert_vectronics_mortality(mortcode integer); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE FUNCTION bctw.convert_vectronics_mortality(mortcode integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+	DECLARE
+	begin
+		return mortcode = 5;
+	END;
+$function$
+;
+COMMENT ON FUNCTION bctw.convert_vectronics_mortality(mortcode integer) IS 'Converts vectronics mortality to boolean. Used in get_normalized_telemetry';
+
+--
+-- Name: get_normalized_telemetry(vndr text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE FUNCTION bctw.get_normalized_telemetry(vndr text)
+ RETURNS TABLE(collar_id uuid, latitude double precision, longitude double precision, elevation double precision, acquisition_date timestamp without time zone, mainbattvolt double precision, bckupbattvolt double precision, geom geometry, deviceid integer, ecefx double precision, ecefy double precision, ecefz double precision, temperature integer, vendor text, at_activity character varying, at_hdop character varying, at_numsats integer, lo_pdop double precision, lo_rxstatus integer, ve_dop double precision, ve_fixtype integer, mortality boolean, ve_origincode text)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+ATS_CODE integer 			:= get_code_id('device_make', 'ATS');
+LOTEK_CODE integer 			:= get_code_id('device_make', 'Lotek');
+VECTRONIC_CODE integer 		:= get_code_id('device_make', 'Vectronic');
+LOTEK_MORTALITIES integer[] := ARRAY(
+	SELECT ltsa.device_id
+	FROM bctw.telemetry_sensor_alert ltsa
+	WHERE ltsa.alert_type = 'mortality'
+	AND ltsa.device_make = 'Lotek'
+);
+BEGIN 
+	raise notice 'mort: %', LOTEK_MORTALITIES;
+	if vndr = 'ats' then 
+		return query
+			select
+				ac.collar_id,
+				a.latitude, 
+				a.longitude,
+				null::float as elevation,
+				cast(a.date as timestamp) as acquisition_date,
+				a.battvoltage as mainbattvolt,
+				null::float as bckupbattvolt,
+				a.geom,
+				a.collarserialnumber as deviceid,
+				null::float as ecefx,
+				null::float as ecefy,
+				null::float as ecefz,
+				cast(a.temperature as integer),
+				vndr as vendor,
+				a.activity as at_activity,
+				a.hdop as at_hdop,
+				cast(a.numsats as integer) as at_numstas,
+				null::float as lo_pdop,
+				null::integer as lo_rxstatus,
+				null::float as ve_dop,
+				null::integer as ve_fixtype,
+				a.mortality as mortality,
+				null::text as ve_origincode
+			from bctw.collar ac
+			inner join bctw.ats_collar_data a 
+			on a.collarserialnumber = ac.device_id
+			where ac.device_make = ATS_CODE
+			and is_valid(ac.valid_to);
+
+	elseif vndr = 'lotek' then 
+		return query
+			select
+				lc.collar_id,
+--				lcas.assignment_id,
+				l.latitude,
+				l.longitude,
+				l.altitude as elevation, 
+				cast(l.recdatetime as timestamp) as acquisition_date,
+				l.mainv as mainbattvolt,
+				l.bkupv as bckupbattvolt,
+				l.geom,
+				l.deviceid,
+				l.ecefx,
+				l.ecefy,
+				l.ecefz,
+				cast(l.temperature as integer),
+				vndr as vendor,
+				null::varchar as at_activity,
+				null::varchar as at_hdop,
+				null::integer as at_numstas,
+				l.pdop as lo_pdop,
+				l.rxstatus as lo_rxstatus,
+				null::float as ve_dop,
+				null::integer as ve_fixtype,
+				l.deviceid = ANY(LOTEK_MORTALITIES) AND l.recdatetime >= (
+					SELECT ltsa.created_at
+					FROM bctw.telemetry_sensor_alert ltsa
+					WHERE ltsa.alert_type = 'mortality'
+					AND ltsa.device_make = 'Lotek'
+					AND ltsa.device_id = l.deviceid
+				) as mortality,
+				null::text as ve_origincode
+			from bctw.collar lc
+			INNER join bctw.lotek_collar_data l 
+			on l.deviceid = lc.device_id
+			AND lc.device_make = LOTEK_CODE
+			and is_valid(lc.valid_to);
+	elseif vndr = 'vectronic' then 
+		return query
+			select
+--				vcas.assignment_id,
+				vc.collar_id,
+				v.latitude,
+				v.longitude,
+				v.height as elevation,
+				cast(v.acquisitiontime as timestamp) as acquisition_date,
+				v.mainvoltage as mainbattvolt,
+				v.backupvoltage as bckupbattvolt,
+				v.geom,
+				v.idcollar as deviceid,
+				v.ecefx,
+				v.ecefy,
+				v.ecefz,
+				cast(v.temperature as integer),
+				vndr as vendor,
+				null::varchar as at_activity,
+				null::varchar as at_hdop,
+				null::integer as at_numstas,
+				null::float as lo_pdop,
+				null::integer as lo_rxstatus,
+				v.dop as ve_dop,
+				v.idfixtype as ve_fixtype,
+				convert_vectronics_mortality(v.idmortalitystatus) as mortality,
+				v.origincode as ve_origincode
+			from bctw.collar vc
+			inner join bctw.vectronics_collar_data v 
+			on v.idcollar = vc.device_id
+			where vc.device_make = VECTRONIC_CODE
+			and is_valid(vc.valid_to);
+
+--			Some work from attempting to grab the animal assignment_id;
+		
+--			from bctw.collar_animal_assignment vcas
+--			inner join collar vc on vc.collar_id = vcas.collar_id
+--			inner join bctw.vectronics_collar_data v on vc.device_id = v.idcollar
+--			where is_valid(vc.valid_to) 
+--			and vc.device_make = vectronic_code
+--			and is_valid(v.acquisitiontime, vcas.attachment_start, vcas.attachment_end);
+		
+	else raise exception 'Please provide vendor identifier ex: lotek, ats or vectronic';
+	end if;
+END;
+$function$
+;
+
+
+COMMENT ON FUNCTION bctw.get_normalized_telemetry(vndr text) IS 'Function used in telemetry_v, normalizes data from all three vendors and outputs a table for each vendor. NOTE: vndr = lotek, vectronic or ats';
+
+--
+-- Name: id_has_null_valid_to(id uuid, viewname text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+	DECLARE
+	NULL_VALID_TO timestamp[];
+	BEGIN
+			IF viewname = 'collar_v' THEN
+				NULL_VALID_TO := ARRAY(
+				SELECT valid_to 
+				FROM collar_v 
+				WHERE collar_id = id);
+			ELSEIF viewname = 'animal_v' THEN
+				NULL_VALID_TO := ARRAY(
+					SELECT valid_to 
+					FROM animal_v 
+					WHERE critter_id = id
+				);
+			ELSE RAISE EXCEPTION 'Please provide a view name ie: animal_v, collar_v';
+			END IF;
+			RETURN TRUE = ANY(SELECT UNNEST(NULL_VALID_TO)IS NULL);
+		
+	END;
+
+$function$
+;
+COMMENT ON FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text) IS 'Checks for userIds that a null valid_to for any record with that userId. NOTE: viewname can be animal_v or collar_v';
 
 --
 -- Name: code; Type: TABLE; Schema: bctw; Owner: bctw
