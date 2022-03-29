@@ -8196,6 +8196,25 @@ AS SELECT collar_v.collar_id,
 ALTER TABLE bctw.collar_ids_with_no_null_valid_to OWNER TO bctw;
 GRANT ALL ON TABLE bctw.collar_ids_with_no_null_valid_to TO bctw;
 
+--
+-- Name: collar_animal_assignment_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE OR REPLACE VIEW bctw.collar_animal_assignment_v
+AS SELECT collar_animal_assignment.assignment_id,
+    collar_animal_assignment.collar_id,
+    collar_animal_assignment.critter_id,
+    collar_animal_assignment.attachment_start,
+    collar_animal_assignment.attachment_end
+   FROM collar_animal_assignment;
+
+COMMENT ON VIEW bctw.collar_animal_assignment_v IS 'Simplified view for collar_animal_assignment';
+
+-- Permissions
+
+ALTER TABLE bctw.collar_animal_assignment_v OWNER TO bctw;
+GRANT ALL ON TABLE bctw.collar_animal_assignment_v TO bctw;
+
  COMMENT ON VIEW bctw.collar_ids_with_no_null_valid_to IS 'View for all collar_ids that have no null_valid_to records. Mostly malfunctions/offline devices';
 
 --
