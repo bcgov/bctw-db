@@ -2296,7 +2296,7 @@ LOTEK_MORTALITIES integer[] := ARRAY(
 );
 BEGIN 
 	raise notice 'mort: %', LOTEK_MORTALITIES;
-	if vndr = 'ats' then 
+	if vndr = 'ATS' then 
 		return query
 			select
 				ac.collar_id,
@@ -2328,7 +2328,7 @@ BEGIN
 			where ac.device_make = ATS_CODE
 			and is_valid(ac.valid_to);
 
-	elseif vndr = 'lotek' then 
+	elseif vndr = 'Lotek' then 
 		return query
 			select
 				lc.collar_id,
@@ -2366,7 +2366,7 @@ BEGIN
 			on l.deviceid = lc.device_id
 			AND lc.device_make = LOTEK_CODE
 			and is_valid(lc.valid_to);
-	elseif vndr = 'vectronic' then 
+	elseif vndr = 'Vectronic' then 
 		return query
 			select
 --				vcas.assignment_id,

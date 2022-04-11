@@ -964,7 +964,7 @@ AS SELECT get_normalized_telemetry.collar_id,
     get_normalized_telemetry.ve_fixtype,
     get_normalized_telemetry.mortality,
     get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('ats'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+   FROM get_normalized_telemetry('ATS'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
 UNION ALL
  SELECT get_normalized_telemetry.collar_id,
     get_normalized_telemetry.latitude,
@@ -989,7 +989,7 @@ UNION ALL
     get_normalized_telemetry.ve_fixtype,
     get_normalized_telemetry.mortality,
     get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('lotek'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+   FROM get_normalized_telemetry('Lotek'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
 UNION ALL
  SELECT get_normalized_telemetry.collar_id,
     get_normalized_telemetry.latitude,
@@ -1014,7 +1014,7 @@ UNION ALL
     get_normalized_telemetry.ve_fixtype,
     get_normalized_telemetry.mortality,
     get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('vectronic'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode);
+   FROM get_normalized_telemetry('Vectronic'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode);
 
 COMMENT ON VIEW bctw.telemetry_v IS 'View for the normalized collar data.
 Uses get_normalized_telemetry function to retrieve data.
