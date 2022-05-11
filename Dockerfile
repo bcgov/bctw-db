@@ -1,15 +1,18 @@
-# FROM openjdk:8
+FROM postgres:12
 
-# COPY metabase.jar /app.jar
+# This is our time zone
+ENV TZ America/Vancouver
 
-# EXPOSE 3000
+# install PostGIS
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3-dbgsym
+RUN apt-get install -y --no-install-recommends postgresql-12-postgis-3-scripts
 
-# CMD ["java", "-jar", "/app.jar"]
+# Set the time zone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-FROM openjdk:8
+# Load the PostGIS extension into the database
+COPY load_postgis.sql docker-entrypoint-initdb.d/load_postgis.sql
 
-COPY metabase/metabase.jar /app.jar
-
-EXPOSE 3000
-
-CMD ["java", "-jar", "/app.jar"]
+EXPOSE 5432
