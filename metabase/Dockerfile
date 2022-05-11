@@ -8,7 +8,7 @@
 
 FROM openjdk:8-alpine
 
-COPY metabase/metabase.jar /app.jar
+COPY src/metabase.jar /app.jar
 
 EXPOSE 3000
 
