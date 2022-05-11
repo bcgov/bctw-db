@@ -1,10 +1,9 @@
 FROM openjdk:8
 
-COPY metabase.jar /app
-WORKDIR /app
+WORKDIR /
+
+ADD metabase.jar metabase.jar
 
 EXPOSE 3000
-
-ENTRYPOINT ["java","/app"]
 
 CMD ["java -jar metabase.jar"]
