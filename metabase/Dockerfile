@@ -1,14 +1,16 @@
+# FROM openjdk:8
+
+# COPY metabase.jar /app.jar
+
+# EXPOSE 3000
+
+# CMD ["java", "-jar", "/app.jar"]
+
 FROM openjdk:8
 
-# WORKDIR /app
-# COPY metabase.jar /app
-# COPY src/ /app/src
-
-# ADD metabase.jar metabase.jar
-
-COPY metabase.jar /app.jar
+COPY metabase.jar /app
+COPY Dockerfile /app
 
 EXPOSE 3000
 
-#CMD ["java -jar metabase.jar"]
-CMD ["java", "-jar", "/app.jar"]
+CMD ["java", "-jar", "/app"]
