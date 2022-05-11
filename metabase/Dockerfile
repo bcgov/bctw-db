@@ -8,10 +8,11 @@
 
 FROM openjdk:8-alpine
 
+VOLUME /tmp
+
+ARG JAR_FILE
+
+COPY ${JAR_FILE} src/metabase.jar
 # COPY src/metabase.jar /app.jar
-# ARG JAR_FILE
 
-# COPY ${JAR_FILE} /app.jar
-EXPOSE 3000
-
-CMD ["java", "-jar", "src/metabase.jar"]
+ENTRYPOINT ["java", "-jar", "src/metabase.jar"]
