@@ -2448,3 +2448,61 @@ AS $function$
 $function$
 ;
 COMMENT ON FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text) IS 'Checks for userIds that a null valid_to for any record with that userId. NOTE: viewname can be animal_v or collar_v';
+
+--
+-- Name: get_user_telemetry_alerts(stridir text); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+CREATE OR REPLACE FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text)
+ RETURNS SETOF json
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  critter_access uuid[] := (
+ 		SELECT ARRAY(SELECT critter_id FROM bctw_dapi_v1.get_user_critter_access(stridir, '{admin,manager,editor}'::user_permission[]))
+ 	);
+BEGIN
+  RETURN query
+  SELECT json_agg(t) FROM (
+		SELECT a.alert_id,
+		a.alert_type,
+		a.snoozed_to,
+		a.snooze_count,
+		a.created_at,
+		a.valid_from, 
+		a.valid_to,
+		a.collar_id,
+		a.device_id,
+		a.device_make,
+		a.device_status,
+		a.critter_id,
+		a.animal_id,
+		a.wlh_id,
+		a.species,
+		a.captivity_status,
+		a.animal_status,
+		a.assignment_id,
+		a.attachment_start,
+		a.data_life_start,
+		a.data_life_end,
+		a.attachment_end,
+		a.last_transmission_date,
+		( SELECT uaav.permission_type
+          FROM bctw_dapi_v1.user_animal_assignment_v uaav
+          WHERE uaav.wlh_id::text = a.wlh_id::TEXT
+          AND uaav.requested_for_id = get_user_id(stridir)
+          ) AS permission_type
+		FROM bctw_dapi_v1.alert_v a
+		WHERE a.critter_id = ANY(critter_access)
+		ORDER BY permission_type DESC, snoozed_to ASC
+  ) t;
+END;
+$function$
+;
+
+COMMENT ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) IS 'retrives telemetry alerts for a provided user identifier. The user must have admin, manager, or editor permission to the animal';
+
+-- Permissions
+
+ALTER FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) OWNER TO bctw;
+GRANT ALL ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) TO bctw;
