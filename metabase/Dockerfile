@@ -5,6 +5,6 @@ WORKDIR /app
 
 EXPOSE 3000
 
-ENTRYPOINT ["java","metabase.jar"]
+ENTRYPOINT ["java","/app"]
 
 CMD ["java -jar metabase.jar"]
