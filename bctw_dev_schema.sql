@@ -3,7 +3,7 @@
 --
 
 -- Dumped from database version 12.5
--- Dumped by pg_dump version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
+-- Dumped by pg_dump version 14.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -159,41 +159,57 @@ COMMENT ON TYPE bctw.role_type IS 'BCTW user role types. note: owner is deprecat
 
 
 --
--- Name: telemetry; Type: TYPE; Schema: bctw; Owner: bctw
+-- Name: security_flag; Type: TYPE; Schema: bctw; Owner: bctw
 --
 
-CREATE TYPE bctw.telemetry AS (
-	critter_id uuid,
-	critter_transaction_id uuid,
-	collar_id uuid,
-	collar_transaction_id uuid,
-	species text,
-	wlh_id character varying(20),
-	animal_id character varying(30),
-	device_id integer,
-	device_vendor text,
-	frequency double precision,
-	animal_status text,
-	sex text,
-	device_status text,
-	population_unit text,
-	collective_unit text,
-	geom public.geometry,
-	date_recorded timestamp with time zone,
-	vendor_merge_id bigint,
-	geojson jsonb,
-	map_colour text
+CREATE TYPE bctw.security_flag AS ENUM (
+    'PERSECUTION_OR_HARM_IND',
+    'FEDERAL_OR_PROV_STATUE_IND',
+    'GOVERNMENT_INTEREST_IND',
+    'PROPRIETARY_IND'
 );
 
 
-ALTER TYPE bctw.telemetry OWNER TO bctw;
+ALTER TYPE bctw.security_flag OWNER TO bctw;
 
 --
--- Name: TYPE telemetry; Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: TYPE security_flag; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON TYPE bctw.telemetry IS 'returned in function that retrieves telemetry data to be displayed in the map. (get_user_telemetry)';
+COMMENT ON TYPE bctw.security_flag IS 'Security flags for data exports.';
 
+
+--
+-- Name: species_name; Type: TYPE; Schema: bctw; Owner: bctw
+--
+
+CREATE TYPE bctw.species_name AS ENUM (
+    'Caribou',
+    'Grizzly Bear',
+    'Moose',
+    'Mountain Goat',
+    'Bighorn Sheep',
+    'Dall''s Sheep',
+    'Thinhorn Sheep',
+    'Fallow Deer',
+    'Mule Deer',
+    'White-tailed Deer',
+    'American Bison',
+    'American Black bear',
+    'Bald Eagle',
+    'Bobcat',
+    'Canada Lynx',
+    'Cougar',
+    'Coyote',
+    'Elk',
+    'Feral Horse',
+    'Golden Eagle',
+    'Grey Wolf',
+    'Wolverine'
+);
+
+
+ALTER TYPE bctw.species_name OWNER TO bctw;
 
 --
 -- Name: telemetry_alert_type; Type: TYPE; Schema: bctw; Owner: bctw
@@ -547,6 +563,74 @@ note: not currently in use';
 
 
 --
+-- Name: convert_security_dates_bool(timestamp without time zone, timestamp without time zone, timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.convert_security_dates_bool(recordtime timestamp without time zone DEFAULT NULL::timestamp without time zone, startdate timestamp without time zone DEFAULT NULL::timestamp without time zone, enddate timestamp without time zone DEFAULT NULL::timestamp without time zone) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	BEGIN
+		CASE 
+		
+			WHEN startDate IS NULL AND endDate IS NULL THEN
+				--RAISE NOTICE 'Secure: No rule_start or rule_end';
+				RETURN TRUE;			
+			
+			WHEN startDate IS NULL AND recordTime <= endDate THEN
+				--RAISE NOTICE 'Secure: No rule_start, recordDate is less than rule_end';
+				RETURN TRUE;
+			
+			WHEN endDate IS NULL AND recordTime >= startDate THEN
+				--RAISE NOTICE 'Secure: No rule_end, recordDate is greater than rule_start';
+				RETURN TRUE;
+			
+			WHEN recordTime >= startDate AND recordtime <= endDate THEN
+				--RAISE NOTICE 'Secure: recordDate between rule_start and rule_end';
+				RETURN TRUE;
+			
+			ELSE
+				--RAISE NOTICE 'Not Secure: Telemetry is free to use';
+				RETURN FALSE;
+				
+		END CASE;
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.convert_security_dates_bool(recordtime timestamp without time zone, startdate timestamp without time zone, enddate timestamp without time zone) OWNER TO bctw;
+
+--
+-- Name: FUNCTION convert_security_dates_bool(recordtime timestamp without time zone, startdate timestamp without time zone, enddate timestamp without time zone); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.convert_security_dates_bool(recordtime timestamp without time zone, startdate timestamp without time zone, enddate timestamp without time zone) IS 'Returns TRUE when (Secure)
+1. no startDate or endDate supplied - Rule is open no time supplied
+	
+2. startDate is NULL and recordTime <= endDate - Rule only has end date supplied
+
+3. endDate is NULL and recordTime >= startDate - Rule only has a start date supplied
+	
+4. recordTime >=startDate <= endDate - recordTime is in between the start date and end date';
+
+
+--
+-- Name: convert_vectronics_mortality(integer); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.convert_vectronics_mortality(mortcode integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	DECLARE
+	begin
+		return mortcode = 5;
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.convert_vectronics_mortality(mortcode integer) OWNER TO bctw;
+
+--
 -- Name: delete_animal(text, uuid[]); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -854,6 +938,22 @@ COMMENT ON FUNCTION bctw.get_animal_collar_assignment_history(stridir text, anim
 
 
 --
+-- Name: get_animal_history_v(); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_animal_history_v() RETURNS TABLE(critter_id text)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN 
+	RETURN QUERY
+		select bctw.critter_id from bctw.animal_v;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_animal_history_v() OWNER TO bctw;
+
+--
 -- Name: get_attached_critter_from_device(integer, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -953,7 +1053,7 @@ COMMENT ON FUNCTION bctw.get_code_as_json(codeid integer) IS 'for a provided val
 --
 
 CREATE FUNCTION bctw.get_code_id(codeheader text, description text) RETURNS integer
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE code_id integer;
 BEGIN
@@ -966,7 +1066,7 @@ BEGIN
 	  INNER JOIN bctw.code_header ch
 	  ON c.code_header_id = ch.code_header_id
 	  WHERE lower(ch.code_header_name) = lower(codeheader)
-	  AND is_valid(c.valid_to)
+	  AND bctw.is_valid(c.valid_to)
 	  AND (lower(c.code_description) = lower(description) or lower(c.code_name) = lower(description))
 	  LIMIT 1
 	);
@@ -1090,6 +1190,420 @@ COMMENT ON FUNCTION bctw.get_code_value(codeheader text, description text) IS 'g
 
 
 --
+-- Name: get_critter_history_v(uuid); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_critter_history_v(animalid uuid) RETURNS TABLE(critter_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+--This is selecting from the animal view. Change this later to appropriate view.
+--
+BEGIN 
+	RETURN QUERY
+		select c.critter_id from bctw.animal_v c where c.critter_id = animalid;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_critter_history_v(animalid uuid) OWNER TO bctw;
+
+--
+-- Name: get_data_with_security(bctw.species_name, text[], timestamp without time zone, timestamp without time zone, boolean); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_data_with_security(speciesname bctw.species_name, popunits text[], enddate timestamp without time zone, startdate timestamp without time zone DEFAULT NULL::timestamp without time zone, logging boolean DEFAULT false) RETURNS TABLE(collar_id uuid, species bctw.species_name, population_unit character varying, wlh_id character varying, latitude double precision, longitude double precision, elevation double precision, acquisition_date timestamp without time zone, mainbattvolt double precision, bckupbattvolt double precision, geom public.geometry, deviceid integer, ecefx double precision, ecefy double precision, ecefz double precision, temperature integer, vendor text, at_activity character varying, at_hdop character varying, at_numsats integer, lo_pdop double precision, lo_rxstatus integer, ve_dop double precision, ve_fixtype integer, mortality boolean, ve_origincode text, persecution_or_harm_ind boolean, federal_or_prov_statue_ind boolean, government_interest_ind boolean, proprietary_ind boolean, secure_ind boolean)
+    LANGUAGE plpgsql
+    AS $$
+	DECLARE
+		rowCount int;
+		secureCount int;
+		notSecureCount int;
+	BEGIN
+		--Count rows
+		IF logging = TRUE THEN
+			SELECT count(*), count(tws.secure_ind) FILTER (WHERE tws.secure_ind = TRUE) AS secC
+			INTO rowCount, secureCount
+			FROM bctw.telemetry_with_security_ext_v tws
+			WHERE tws.species = speciesName
+			AND tws.acquisition_date  > startdate
+			AND tws.acquisition_date < enddate
+			AND tws.population_unit = ANY (popunits);
+			RAISE NOTICE 'Rows: % | Secure: % | Non Secure %', rowCount, secureCount, rowCount - secureCount;
+		END IF;
+		
+		RETURN QUERY
+		SELECT *
+		FROM bctw.telemetry_with_security_ext_v s
+		WHERE s.species = speciesName
+		AND s.acquisition_date  > startdate
+		AND s.acquisition_date < enddate
+		AND s.population_unit = ANY (popunits);
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.get_data_with_security(speciesname bctw.species_name, popunits text[], enddate timestamp without time zone, startdate timestamp without time zone, logging boolean) OWNER TO bctw;
+
+--
+-- Name: get_last_and_telemetry(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_last_and_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) RETURNS TABLE(collar_id uuid, critter_id uuid, species character varying, population_unit character varying, wlh_id character varying, device_vendor text, frequency double precision, frequency_unit character varying, animal_status character varying, mortality_date timestamp with time zone, sex character varying, device_status character varying, collective_unit character varying, date_recorded timestamp with time zone, map_colour text, capture_date timestamp with time zone, geom public.geometry)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  userid integer := get_user_id(stridir);
+BEGIN
+  IF userid IS NULL THEN
+    RAISE EXCEPTION 'unable find username %', stridir;
+  END IF;
+  RETURN QUERY
+  SELECT
+    c.collar_id,
+    a.critter_id,
+    (SELECT species_eng_name FROM species WHERE species_code = a.species) AS species,
+    (SELECT code_description FROM code WHERE code.code_id = a.population_unit) AS population_unit,
+    a.wlh_id,
+    vmv.device_vendor,
+    c.frequency,
+	(SELECT code_description FROM code WHERE code.code_id = c.frequency_unit) AS frequency_unit,
+	(SELECT code_description FROM code WHERE code.code_id = a.animal_status) AS animal_status,
+	a.mortality_date,
+	(SELECT code_description FROM code WHERE code.code_id = a.sex) AS sex,
+	(SELECT code_description FROM code WHERE code.code_id = c.device_status) AS device_status,
+	a.collective_unit,
+	vmv.date_recorded,
+	(SELECT concat(code_name, ',', code_description_long) from bctw.code where code_id = a.map_colour) AS map_colour,
+	a.capture_date,
+    vmv.geom
+--    row_number() OVER (ORDER BY 1::integer) AS VENDOR_MERGE_ID,
+--	 	JSONB_BUILD_OBJECT(
+--	 	'type', 'Feature', 
+--	 	'id', row_number() OVER (ORDER BY 1::integer), 
+--	 	'geometry', ST_ASGEOJSON(VMV.geom )::jsonb, 
+--	 	'properties', 
+--	 		JSONB_BUILD_OBJECT(
+--	 			'collar_id', 		c.collar_id,
+--	 			'critter_id', 		a.critter_id,
+--	 			'species', 			(SELECT species_eng_name FROM species WHERE species_code = a.species),
+--	 			'wlh_id', 			a.wlh_id,
+--	 			'animal_id', 		a.animal_id,
+--	 			'device_id', 		vmv.device_id,
+--	 			'device_vendor', 	vmv.device_vendor,
+--	 			'frequency', 		c.frequency,
+--	 			'frequency_unit', 	(SELECT code_description FROM code WHERE code.code_id = c.frequency_unit),
+--	 			'animal_status', 	(SELECT code_description FROM code WHERE code.code_id = a.animal_status),
+--	 			'mortality_date', 	a.mortality_date,
+--	 			'sex', 				(SELECT code_description FROM code WHERE code.code_id = a.sex),
+--	 			'device_status', 	(SELECT code_description FROM code WHERE code.code_id = c.device_status),
+--	 			'population_unit',  (SELECT code_description FROM code WHERE code.code_id = a.population_unit),
+--	 			'collective_unit', 	a.collective_unit,
+--	 			'date_recorded', 	vmv.date_recorded,
+--	 			'map_colour', 		(SELECT concat(code_name, ',', code_description_long) from bctw.code where code_id = a.map_colour),
+--	 			'capture_date', 	a.capture_date -- fixme (should be the oldest capture date for this particular device id assignment)
+--	 	 )
+-- 	  ) AS geojson
+ 	
+  FROM bctw.vendor_merge_view_no_critter vmv
+    JOIN bctw.collar c
+      ON c.device_id = vmv.device_id and (SELECT code_description FROM code WHERE code.code_id = c.device_make) = vmv.device_vendor
+      
+    JOIN bctw.collar_animal_assignment caa 
+      ON caa.collar_id = c.collar_id
+      
+	JOIN bctw.animal a
+      ON a.critter_id = caa.critter_id
+  WHERE
+    vmv.date_recorded <@ tstzrange(starttime, endtime)
+  -- find the closet animal record
+    AND a.critter_transaction_id = (
+  	  SELECT critter_transaction_id FROM animal a3 
+	  WHERE a3.critter_id = a.critter_id 
+	  ORDER BY abs(EXTRACT(epoch FROM (a3.valid_from - vmv.date_recorded)))
+	  LIMIT 1
+  	)
+  -- find the closest device record
+	AND c.collar_transaction_id = (
+	  SELECT collar_transaction_id FROM collar c3
+	  WHERE c3.collar_id = c.collar_id
+	  ORDER BY abs(EXTRACT(epoch FROM (c3.valid_from - vmv.date_recorded)))
+	  LIMIT 1
+	) 
+	-- check the user has at least 'observer' permission for the animal
+    AND caa.critter_id IN (
+	    SELECT a.critter_id 
+	    FROM animal a
+			INNER JOIN user_animal_assignment ua ON a.critter_id = ua.critter_id
+			WHERE ua.user_id = userid
+			AND is_valid(a.valid_to)
+			AND is_valid(ua.valid_to)
+			OR a.owned_by_user_id = userid
+			AND is_valid(a.valid_to)
+    );
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_last_and_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) OWNER TO bctw;
+
+--
+-- Name: get_normalized_telemetry(text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_normalized_telemetry(vndr text) RETURNS TABLE(collar_id uuid, latitude double precision, longitude double precision, elevation double precision, acquisition_date timestamp without time zone, mainbattvolt double precision, bckupbattvolt double precision, geom public.geometry, deviceid integer, ecefx double precision, ecefy double precision, ecefz double precision, temperature integer, vendor text, at_activity character varying, at_hdop character varying, at_numsats integer, lo_pdop double precision, lo_rxstatus integer, ve_dop double precision, ve_fixtype integer, mortality boolean, ve_origincode text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+ATS_CODE integer 			:= bctw.get_code_id('device_make'::text, 'ATS'::text);
+LOTEK_CODE integer 			:= bctw.get_code_id('device_make'::text, 'Lotek'::text);
+VECTRONIC_CODE integer 		:= bctw.get_code_id('device_make'::text, 'Vectronic'::text);
+LOTEK_MORTALITIES integer[] := ARRAY(
+	SELECT DISTINCT ON (ltsa.device_id) ltsa.device_id
+	FROM bctw.telemetry_sensor_alert ltsa
+	WHERE ltsa.alert_type = 'mortality'
+	AND ltsa.device_make = 'Lotek'
+);
+BEGIN 
+	if vndr = 'ATS' then 
+		return query
+			select
+				ac.collar_id,
+				a.latitude, 
+				a.longitude,
+				null::float as elevation,
+				cast(a.date as timestamp) as acquisition_date,
+				a.battvoltage as mainbattvolt,
+				null::float as bckupbattvolt,
+				a.geom,
+				a.collarserialnumber as deviceid,
+				null::float as ecefx,
+				null::float as ecefy,
+				null::float as ecefz,
+				cast(a.temperature as integer),
+				vndr as vendor,
+				a.activity as at_activity,
+				a.hdop as at_hdop,
+				cast(a.numsats as integer) as at_numstas,
+				null::float as lo_pdop,
+				null::integer as lo_rxstatus,
+				null::float as ve_dop,
+				null::integer as ve_fixtype,
+				a.mortality as mortality,
+				null::text as ve_origincode
+			from bctw.collar ac
+			inner join bctw.ats_collar_data a 
+			on a.collarserialnumber = ac.device_id
+			where ac.device_make = ATS_CODE
+			and bctw.is_valid(ac.valid_to);
+
+	elseif vndr = 'Lotek' then 
+		return query
+			select
+				lc.collar_id,
+--				lcas.assignment_id,
+				l.latitude,
+				l.longitude,
+				l.altitude as elevation, 
+				cast(l.recdatetime as timestamp) as acquisition_date,
+				l.mainv as mainbattvolt,
+				l.bkupv as bckupbattvolt,
+				l.geom,
+				l.deviceid,
+				l.ecefx,
+				l.ecefy,
+				l.ecefz,
+				cast(l.temperature as integer),
+				vndr as vendor,
+				null::varchar as at_activity,
+				null::varchar as at_hdop,
+				null::integer as at_numstas,
+				l.pdop as lo_pdop,
+				l.rxstatus as lo_rxstatus,
+				null::float as ve_dop,
+				null::integer as ve_fixtype,
+				l.deviceid = ANY(LOTEK_MORTALITIES) AND l.recdatetime >= (
+					SELECT ltsa.created_at
+					FROM bctw.telemetry_sensor_alert ltsa
+					WHERE ltsa.alert_type = 'mortality'
+					AND ltsa.device_make = 'Lotek'
+					AND ltsa.device_id = l.deviceid
+					ORDER BY ltsa.created_at ASC
+					LIMIT 1
+				) as mortality,
+				null::text as ve_origincode
+			from bctw.collar lc
+			INNER join bctw.lotek_collar_data l 
+			on l.deviceid = lc.device_id
+			AND lc.device_make = LOTEK_CODE
+			and bctw.is_valid(lc.valid_to);
+	elseif vndr = 'Vectronic' then 
+		return query
+			select
+--				vcas.assignment_id,
+				vc.collar_id,
+				v.latitude,
+				v.longitude,
+				v.height as elevation,
+				cast(v.acquisitiontime as timestamp) as acquisition_date,
+				v.mainvoltage as mainbattvolt,
+				v.backupvoltage as bckupbattvolt,
+				v.geom,
+				v.idcollar as deviceid,
+				v.ecefx,
+				v.ecefy,
+				v.ecefz,
+				cast(v.temperature as integer),
+				vndr as vendor,
+				null::varchar as at_activity,
+				null::varchar as at_hdop,
+				null::integer as at_numstas,
+				null::float as lo_pdop,
+				null::integer as lo_rxstatus,
+				v.dop as ve_dop,
+				v.idfixtype as ve_fixtype,
+				convert_vectronics_mortality(v.idmortalitystatus) as mortality,
+				v.origincode as ve_origincode
+			from bctw.collar vc
+			inner join bctw.vectronics_collar_data v 
+			on v.idcollar = vc.device_id
+			where vc.device_make = VECTRONIC_CODE
+			and bctw.is_valid(vc.valid_to);
+
+--			Some work from attempting to grab the animal assignment_id;
+		
+--			from bctw.collar_animal_assignment vcas
+--			inner join collar vc on vc.collar_id = vcas.collar_id
+--			inner join bctw.vectronics_collar_data v on vc.device_id = v.idcollar
+--			where is_valid(vc.valid_to) 
+--			and vc.device_make = vectronic_code
+--			and is_valid(v.acquisitiontime, vcas.attachment_start, vcas.attachment_end);
+		
+	else raise exception 'Please provide vendor identifier ex: lotek, ats or vectronic';
+	end if;
+END;
+$$;
+
+
+ALTER FUNCTION bctw.get_normalized_telemetry(vndr text) OWNER TO bctw;
+
+--
+-- Name: get_security_id(bctw.species_name, text, bctw.security_flag, character varying, timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying DEFAULT NULL::character varying, recordtime timestamp without time zone DEFAULT NULL::timestamp without time zone) RETURNS integer[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+sec RECORD;
+secIds int[];
+	BEGIN
+		CASE
+			WHEN flg IS NULL THEN
+				RAISE EXCEPTION 'get_security_id: Security flag is NULL. Must set flag to a bctw.security_flag enum val';
+			WHEN speciesstr IS NULL THEN
+				RAISE EXCEPTION 'get_security_id: Species can not be a NULL value';
+			ELSE
+		END CASE;
+	
+		FOR sec IN 
+			SELECT * 
+			FROM bctw.security_rules s 
+			WHERE s.species = speciesStr 
+			AND flag = flg
+			AND bctw.is_valid(valid_to)
+			
+			LOOP
+					CASE
+						-- Rule applies to the entire species
+						WHEN sec.population_unit IS NULL AND sec.wlh_id IS NULL THEN
+						
+							IF bctw.convert_security_dates_bool(recordtime, sec.rule_start, sec.rule_end) THEN
+								--RAISE NOTICE 'Rule applies to entire species';
+							ELSE 
+								CONTINUE;
+							END IF;
+						
+						-- Rule applies to the entire population unit
+						WHEN sec.population_unit IS NOT NULL 
+						AND sec.population_unit = popunit
+						AND sec.wlh_id IS NULL THEN
+						
+							IF bctw.convert_security_dates_bool(recordtime, sec.rule_start, sec.rule_end) THEN
+									--RAISE NOTICE 'Rule applies to entire population';
+							ELSE 
+								CONTINUE;
+							END IF;
+							
+						-- Rule applies to a specific wlh_id
+						WHEN sec.wlh_id IS NOT NULL AND sec.wlh_id = wlhid THEN
+--						AND sec.population_unit IS NULL THEN
+						
+							IF bctw.convert_security_dates_bool(recordtime, sec.rule_start, sec.rule_end) THEN
+								--RAISE NOTICE 'Rule applies to specific wlh_id';
+							ELSE 
+								CONTINUE;
+							END IF;
+
+						ELSE 
+							--RAISE NOTICE 'Rule does not apply.';
+							CONTINUE;
+					END CASE;
+			secIds := secIds || sec.security_rule_id;
+		  END LOOP;
+RETURN secIds;
+		
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying, recordtime timestamp without time zone) OWNER TO bctw;
+
+--
+-- Name: FUNCTION get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying, recordtime timestamp without time zone); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying, recordtime timestamp without time zone) IS 'Returns security_ids based on the data from the telemetry record. Cross references the security_rules table and returns an array of applicable security_ids.
+
+***Function Walkthrough***
+
+1. Checks if the flag / species params are NULL and raises exception
+
+2. Selects from the rules table all records that have matching species and flag (from params) and an is_valid(valid_to)
+
+3. Loops through returned results searching for matching conditions on the telemetry record
+
+4. Checks the recordtime with convert_security_dates_bool()  True = Secure Data : False = Open Data
+	
+- TRUE: push the current record''s security_id to the output array
+	
+- FALSE: continue the loop on the next iteration skipping the array push
+
+5. Returns array of security_ids';
+
+
+--
 -- Name: get_species_id_with_error(text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -1135,7 +1649,7 @@ COMMENT ON FUNCTION bctw.get_species_id_with_error(commonname text) IS 'attempts
 --
 
 CREATE FUNCTION bctw.get_species_name(code character varying) RETURNS character varying
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
 species varchar;
@@ -1243,13 +1757,6 @@ $$;
 
 
 ALTER FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) OWNER TO bctw;
-
---
--- Name: FUNCTION get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone); Type: COMMENT; Schema: bctw; Owner: bctw
---
-
-COMMENT ON FUNCTION bctw.get_telemetry(stridir text, starttime timestamp with time zone, endtime timestamp with time zone) IS 'retrieves telemetry for a user between the start and end parameters. Used in the map view. Most of the data is contained iwthin the geojson object, aka a Feature in the frontend.';
-
 
 --
 -- Name: get_udf(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
@@ -1364,7 +1871,7 @@ BEGIN
 	  JOIN bctw.user_role_xref rx on urt.role_id = rx.role_id
 		JOIN bctw.user u on u.id = rx.user_id 
 	  WHERE u.id = userid
-	  AND urt.role_type = 'administrator'
+	  AND bctw.is_typeof_admin(urt.role_type)
 	) THEN RETURN 'admin'::user_permission;
   END IF;
  
@@ -1678,7 +2185,7 @@ begin
 	    )
 	);
 	-- users with admin role have access to all unassigned devices
-	if userrole = 'administrator'
+	IF bctw.is_typeof_admin(userrole)
     then return unassignedids;
 	end if;
 	-- non-admin users only have access to devices they created
@@ -1717,7 +2224,7 @@ BEGIN
 	END IF;
 
 	user_granting_role := (SELECT role_type FROM bctw_dapi_v1.user_v WHERE id = user_id_granting);
-    IF user_granting_role != 'administrator' THEN 
+    IF bctw.is_typeof_admin(user_granting_role) = FALSE THEN 
   		RAISE EXCEPTION 'you do not have access to grant animal permissions with role % ', user_granting_role;
 	END IF;
 
@@ -1813,7 +2320,7 @@ BEGIN
 
 	userrole := (SELECT role_type FROM bctw_dapi_v1.user_v WHERE id = userid);
 
-  IF userrole != 'administrator' THEN 
+  IF userrole != 'administrator' AND userrole != 'data_administrator' THEN 
   	RAISE EXCEPTION 'you must be an administrator to call this function - your role is: %', userrole;
 	END IF;
 
@@ -1956,6 +2463,169 @@ ALTER FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer
 --
 
 COMMENT ON FUNCTION bctw.handle_onboarding_request(identifier text, requestid integer, status bctw.onboarding_status, user_role bctw.role_type) IS 'administrator function used to grant or deny an onboarding request.';
+
+
+--
+-- Name: has_no_null_valid_to(uuid); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.has_no_null_valid_to(id uuid) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	DECLARE
+	VALID_TO_ARRAY timestamp[] := ARRAY(
+		SELECT valid_to 
+		FROM collar_v
+		WHERE collar_id = id	
+	);
+	BEGIN
+		RETURN NULL = ANY(VALID_TO_ARRAY);
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.has_no_null_valid_to(id uuid) OWNER TO bctw;
+
+--
+-- Name: id_has_null_valid_to(uuid, text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	DECLARE
+	NULL_VALID_TO timestamp[];
+	BEGIN
+			IF viewname = 'collar_v' THEN
+				NULL_VALID_TO := ARRAY(
+				SELECT valid_to 
+				FROM collar_v 
+				WHERE collar_id = id);
+			ELSEIF viewname = 'animal_v' THEN
+				NULL_VALID_TO := ARRAY(
+					SELECT valid_to 
+					FROM animal_v 
+					WHERE critter_id = id
+				);
+			ELSE RAISE EXCEPTION 'Please provide a view name ie: animal_v, collar_v';
+			END IF;
+			RETURN TRUE = ANY(SELECT UNNEST(NULL_VALID_TO)IS NULL);
+		
+	END;
+
+$$;
+
+
+ALTER FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text) OWNER TO bctw;
+
+--
+-- Name: insert_security_rules(bctw.security_flag, bctw.species_name, text[], character varying[], timestamp without time zone, timestamp without time zone, uuid); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.insert_security_rules(flg bctw.security_flag, speciesname bctw.species_name, popunit text[] DEFAULT NULL::text[], wlhid character varying[] DEFAULT NULL::character varying[], startdate timestamp without time zone DEFAULT NULL::timestamp without time zone, enddate timestamp without time zone DEFAULT NULL::timestamp without time zone, secreasonid uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	DECLARE 
+	pLen int := COALESCE (array_length(popUnit, 1), 0);
+	wLen int := COALESCE (array_length(wlhID, 1), 0);
+	counter int;
+	id int;
+	usePopArray boolean;
+	didInsert boolean := FALSE;
+	BEGIN
+	CASE 
+		WHEN pLen > 1 AND wLen > 0 THEN 
+			RAISE EXCEPTION 'wlh_ids can not be used with more than one population_unit';
+		WHEN pLen > 1 AND wLen >  1 THEN 
+			RAISE EXCEPTION 'Bulk insert works by inserting an array of population_units OR wlh_ids NOT both. Ex: popunit:[pop1,pop2] wlhID:NULL or popunit:[pop3] wlhID:[123,456,789]';
+		WHEN pLen = 0 AND wLen = 0 THEN
+			RAISE EXCEPTION 'Must provide popunits or wlhids not NULL for both.';
+		ELSE
+			usePopArray := pLen >=wLen;
+			IF usePopArray THEN
+				counter := pLen;
+			ELSE counter := wLen;
+			END IF;
+		
+				FOR i IN 1..counter LOOP
+		
+					SELECT security_rule_id
+					INTO id
+					FROM bctw.security_rules
+					WHERE species = speciesname
+					AND flag = flg
+					AND NULLIF(population_unit, CASE WHEN usePopArray THEN popunit[i] ELSE popunit [1] END) IS NULL
+					AND NULLIF (wlh_id, CASE WHEN usePopArray THEN wlhid[1] ELSE wlhid [i] END) IS NULL
+					AND NULLIF(rule_start, startdate) IS NULL 
+					AND NULLIF(rule_end, enddate) IS NULL
+					AND NULLIF(security_reason_id, secreasonid) IS NULL
+					GROUP BY security_rule_id;
+					
+					IF id IS NOT NULL THEN
+						RAISE NOTICE 'Security rule -> % already exists. Skipping...', id;
+						CONTINUE;
+					END IF;
+				
+					IF usePopArray IS TRUE THEN 
+						INSERT INTO bctw.security_rules
+						(species, population_unit, wlh_id, rule_start, rule_end, flag, security_reason_id)
+						VALUES (speciesname, popunit [i], wlhID[1], startdate, enddate, flg, secreasonid);
+					ELSE 
+						INSERT INTO bctw.security_rules
+						(species, population_unit, wlh_id, rule_start, rule_end, flag, security_reason_id)
+						VALUES (speciesname, popunit [1], wlhID[i], startdate, enddate, flg, secreasonid);
+					END IF; 
+					RAISE NOTICE 'Inserting a rule...';
+					didInsert := TRUE;
+				END LOOP;
+			
+	END CASE;
+	RETURN didInsert;
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.insert_security_rules(flg bctw.security_flag, speciesname bctw.species_name, popunit text[], wlhid character varying[], startdate timestamp without time zone, enddate timestamp without time zone, secreasonid uuid) OWNER TO bctw;
+
+--
+-- Name: FUNCTION insert_security_rules(flg bctw.security_flag, speciesname bctw.species_name, popunit text[], wlhid character varying[], startdate timestamp without time zone, enddate timestamp without time zone, secreasonid uuid); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.insert_security_rules(flg bctw.security_flag, speciesname bctw.species_name, popunit text[], wlhid character varying[], startdate timestamp without time zone, enddate timestamp without time zone, secreasonid uuid) IS 'Helper function for bulk insertion of security rules. 
+Function Rules:
+1. wlhid + popunit must both be arrays even if only one element
+2. Multiple popunits can not be provided with wlhids
+3. Multiple wlhids can not be provided with multiple popunits
+4. Rules will not be added if existing rule already exists
+5. Must provide at least one array for popunits / wlhids
+';
+
+
+--
+-- Name: is_typeof_admin(text); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.is_typeof_admin(adminstr text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	BEGIN
+		CASE 
+		WHEN adminStr = 'administrator' THEN RETURN TRUE;
+		WHEN adminStr = 'data_administrator' THEN RETURN TRUE;
+		ELSE RETURN FALSE;
+		END CASE;
+		
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.is_typeof_admin(adminstr text) OWNER TO bctw;
+
+--
+-- Name: FUNCTION is_typeof_admin(adminstr text); Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw.is_typeof_admin(adminstr text) IS 'returns true if ''administrator'' or ''data_administrator''';
 
 
 --
@@ -2143,7 +2813,8 @@ CREATE TABLE bctw.animal (
     ucod_confidence integer,
     mortality_report boolean,
     mortality_investigation integer,
-    device_id integer
+    device_id integer,
+    you character varying(13)
 );
 
 
@@ -3374,6 +4045,46 @@ COMMENT ON PROCEDURE bctw.proc_update_mortality_status(collarid uuid, critterid 
 
 
 --
+-- Name: security_date_helper(jsonb); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.security_date_helper(dateobj jsonb) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+	BEGIN
+
+	END;
+$$;
+
+
+ALTER FUNCTION bctw.security_date_helper(dateobj jsonb) OWNER TO bctw;
+
+--
+-- Name: security_date_helper(jsonb, timestamp without time zone); Type: FUNCTION; Schema: bctw; Owner: bctw
+--
+
+CREATE FUNCTION bctw.security_date_helper(dateobj jsonb, checkdate timestamp without time zone) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+	objKey TEXT;
+	objValue Timestamp;
+	obj jsonb;
+	BEGIN
+		--FOR startDate, endDate IN SELECT jsonb_populate_recordset(NULL::bctw.security_rule, dateObj)
+--		FOR objKey, objValue IN SELECT * FROM jsonb_each_text($1) LOOP
+--			RAISE NOTICE '%: %', objKey, objValue;
+		FOR obj IN SELECT * FROM jsonb_array_elements(dateObj) LOOP
+			RAISE NOTICE 'output: %', obj->>'startDate';
+    	END LOOP;
+    RETURN NULL;
+	END;
+$_$;
+
+
+ALTER FUNCTION bctw.security_date_helper(dateobj jsonb, checkdate timestamp without time zone) OWNER TO bctw;
+
+--
 -- Name: set_user_role(text, text); Type: FUNCTION; Schema: bctw; Owner: bctw
 --
 
@@ -3572,8 +4283,9 @@ CREATE FUNCTION bctw.trg_new_alert() RETURNS trigger
 				WHERE device_id = new_record.device_id
 				AND is_valid(valid_to)
 				AND device_make = get_code_id('device_make', new_record.device_make)
+				ORDER BY collar_id
+				LIMIT 1
 			);
-
 			IF collarid IS NULL THEN 
 --				RAISE EXCEPTION 'null collar';
 				RETURN NULL;
@@ -3725,6 +4437,8 @@ CREATE FUNCTION bctw.trg_process_lotek_insert() RETURNS trigger
 				WHERE device_id = new_record.device_id
 				AND is_valid(valid_to)
 				AND device_make = get_code_id('device_make', 'Lotek')
+				ORDER BY collar_id
+				LIMIT 1
 			);
 
 			IF collarid IS NULL THEN 
@@ -5046,7 +5760,7 @@ CREATE FUNCTION bctw_dapi_v1.get_movement_history(stridir text, collarid uuid, t
     AS $$
 DECLARE
 userid integer := bctw.get_user_id(stridir);
-vendor_code_id integer := (SELECT device_make FROM bctw.collar WHERE collar_id = collarid);
+vendor_code_id integer := (SELECT device_make FROM bctw.collar WHERE collar_id = collarid LIMIT 1);
 vendor_str TEXT;
 BEGIN
 	IF userid IS NULL 		
@@ -5253,10 +5967,9 @@ COMMENT ON FUNCTION bctw_dapi_v1.get_user_id(stridir text) IS 'provided with an 
 -- Name: get_user_telemetry_alerts(text); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-CREATE OR REPLACE FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text)
- RETURNS SETOF json
- LANGUAGE plpgsql
-AS $function$
+CREATE FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) RETURNS SETOF json
+    LANGUAGE plpgsql
+    AS $$
 DECLARE
   critter_access uuid[] := (
  		SELECT ARRAY(SELECT critter_id FROM bctw_dapi_v1.get_user_critter_access(stridir, '{admin,manager,editor}'::user_permission[]))
@@ -5297,15 +6010,17 @@ BEGIN
 		ORDER BY permission_type DESC, snoozed_to ASC
   ) t;
 END;
-$function$
-;
+$$;
 
-COMMENT ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) IS 'retrives telemetry alerts for a provided user identifier. The user must have admin, manager, or editor permission to the animal';
 
--- Permissions
+ALTER FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) OWNER TO bctw;
 
-ALTER FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) OWNER TO bctw;
-GRANT ALL ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(text) TO bctw;
+--
+-- Name: FUNCTION get_user_telemetry_alerts(stridir text); Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
+--
+
+COMMENT ON FUNCTION bctw_dapi_v1.get_user_telemetry_alerts(stridir text) IS 'retrives telemetry alerts for a provided user identifier. The user must have admin, manager, or editor permission to the animal';
+
 
 --
 -- Name: get_users(text); Type: FUNCTION; Schema: bctw_dapi_v1; Owner: bctw
@@ -5316,14 +6031,15 @@ CREATE FUNCTION bctw_dapi_v1.get_users(stridir text) RETURNS json
     AS $$
 declare
 userid integer := bctw.get_user_id(stridir);
-isAdmin boolean;
+isDataAdmin boolean;
+adminType TEXT;
 begin
 	if userid is null
 		then raise exception 'unable find user with idir %', stridir;
 	end if;
 
-	isAdmin := (select (select (select * from bctw.get_user_role(stridir)) = 'administrator')::boolean);
-  IF isAdmin THEN 
+	adminType := (SELECT bctw.get_user_role(stridir));
+  IF bctw.is_typeof_admin(adminType) THEN 
 		RETURN (SELECT json_agg(t) FROM (SELECT * FROM bctw_dapi_v1.user_v)	t);
   ELSE
   	RAISE EXCEPTION 'you must be an administrator or owner to perform this action';
@@ -5341,194 +6057,6 @@ ALTER FUNCTION bctw_dapi_v1.get_users(stridir text) OWNER TO bctw;
 
 COMMENT ON FUNCTION bctw_dapi_v1.get_users(stridir text) IS 'returns a list of user data, must have the admin type role';
 
---
--- Name: convert_vectronics_mortality(mortcode integer); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE FUNCTION bctw.convert_vectronics_mortality(mortcode integer)
- RETURNS boolean
- LANGUAGE plpgsql
-AS $function$
-	DECLARE
-	begin
-		return mortcode = 5;
-	END;
-$function$
-;
-COMMENT ON FUNCTION bctw.convert_vectronics_mortality(mortcode integer) IS 'Converts vectronics mortality to boolean. Used in get_normalized_telemetry';
-
---
--- Name: get_normalized_telemetry(vndr text); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE FUNCTION bctw.get_normalized_telemetry(vndr text)
- RETURNS TABLE(collar_id uuid, latitude double precision, longitude double precision, elevation double precision, acquisition_date timestamp without time zone, mainbattvolt double precision, bckupbattvolt double precision, geom geometry, deviceid integer, ecefx double precision, ecefy double precision, ecefz double precision, temperature integer, vendor text, at_activity character varying, at_hdop character varying, at_numsats integer, lo_pdop double precision, lo_rxstatus integer, ve_dop double precision, ve_fixtype integer, mortality boolean, ve_origincode text)
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-ATS_CODE integer 			:= get_code_id('device_make', 'ATS');
-LOTEK_CODE integer 			:= get_code_id('device_make', 'Lotek');
-VECTRONIC_CODE integer 		:= get_code_id('device_make', 'Vectronic');
-LOTEK_MORTALITIES integer[] := ARRAY(
-	SELECT ltsa.device_id
-	FROM bctw.telemetry_sensor_alert ltsa
-	WHERE ltsa.alert_type = 'mortality'
-	AND ltsa.device_make = 'Lotek'
-);
-BEGIN 
-	raise notice 'mort: %', LOTEK_MORTALITIES;
-	if vndr = 'ATS' then 
-		return query
-			select
-				ac.collar_id,
-				a.latitude, 
-				a.longitude,
-				null::float as elevation,
-				cast(a.date as timestamp) as acquisition_date,
-				a.battvoltage as mainbattvolt,
-				null::float as bckupbattvolt,
-				a.geom,
-				a.collarserialnumber as deviceid,
-				null::float as ecefx,
-				null::float as ecefy,
-				null::float as ecefz,
-				cast(a.temperature as integer),
-				vndr as vendor,
-				a.activity as at_activity,
-				a.hdop as at_hdop,
-				cast(a.numsats as integer) as at_numstas,
-				null::float as lo_pdop,
-				null::integer as lo_rxstatus,
-				null::float as ve_dop,
-				null::integer as ve_fixtype,
-				a.mortality as mortality,
-				null::text as ve_origincode
-			from bctw.collar ac
-			inner join bctw.ats_collar_data a 
-			on a.collarserialnumber = ac.device_id
-			where ac.device_make = ATS_CODE
-			and is_valid(ac.valid_to);
-
-	elseif vndr = 'Lotek' then 
-		return query
-			select
-				lc.collar_id,
---				lcas.assignment_id,
-				l.latitude,
-				l.longitude,
-				l.altitude as elevation, 
-				cast(l.recdatetime as timestamp) as acquisition_date,
-				l.mainv as mainbattvolt,
-				l.bkupv as bckupbattvolt,
-				l.geom,
-				l.deviceid,
-				l.ecefx,
-				l.ecefy,
-				l.ecefz,
-				cast(l.temperature as integer),
-				vndr as vendor,
-				null::varchar as at_activity,
-				null::varchar as at_hdop,
-				null::integer as at_numstas,
-				l.pdop as lo_pdop,
-				l.rxstatus as lo_rxstatus,
-				null::float as ve_dop,
-				null::integer as ve_fixtype,
-				l.deviceid = ANY(LOTEK_MORTALITIES) AND l.recdatetime >= (
-					SELECT ltsa.created_at
-					FROM bctw.telemetry_sensor_alert ltsa
-					WHERE ltsa.alert_type = 'mortality'
-					AND ltsa.device_make = 'Lotek'
-					AND ltsa.device_id = l.deviceid
-				) as mortality,
-				null::text as ve_origincode
-			from bctw.collar lc
-			INNER join bctw.lotek_collar_data l 
-			on l.deviceid = lc.device_id
-			AND lc.device_make = LOTEK_CODE
-			and is_valid(lc.valid_to);
-	elseif vndr = 'Vectronic' then 
-		return query
-			select
---				vcas.assignment_id,
-				vc.collar_id,
-				v.latitude,
-				v.longitude,
-				v.height as elevation,
-				cast(v.acquisitiontime as timestamp) as acquisition_date,
-				v.mainvoltage as mainbattvolt,
-				v.backupvoltage as bckupbattvolt,
-				v.geom,
-				v.idcollar as deviceid,
-				v.ecefx,
-				v.ecefy,
-				v.ecefz,
-				cast(v.temperature as integer),
-				vndr as vendor,
-				null::varchar as at_activity,
-				null::varchar as at_hdop,
-				null::integer as at_numstas,
-				null::float as lo_pdop,
-				null::integer as lo_rxstatus,
-				v.dop as ve_dop,
-				v.idfixtype as ve_fixtype,
-				convert_vectronics_mortality(v.idmortalitystatus) as mortality,
-				v.origincode as ve_origincode
-			from bctw.collar vc
-			inner join bctw.vectronics_collar_data v 
-			on v.idcollar = vc.device_id
-			where vc.device_make = VECTRONIC_CODE
-			and is_valid(vc.valid_to);
-
---			Some work from attempting to grab the animal assignment_id;
-		
---			from bctw.collar_animal_assignment vcas
---			inner join collar vc on vc.collar_id = vcas.collar_id
---			inner join bctw.vectronics_collar_data v on vc.device_id = v.idcollar
---			where is_valid(vc.valid_to) 
---			and vc.device_make = vectronic_code
---			and is_valid(v.acquisitiontime, vcas.attachment_start, vcas.attachment_end);
-		
-	else raise exception 'Please provide vendor identifier ex: lotek, ats or vectronic';
-	end if;
-END;
-$function$
-;
-
-
-COMMENT ON FUNCTION bctw.get_normalized_telemetry(vndr text) IS 'Function used in telemetry_v, normalizes data from all three vendors and outputs a table for each vendor. NOTE: vndr = lotek, vectronic or ats';
-
---
--- Name: id_has_null_valid_to(id uuid, viewname text); Type: FUNCTION; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text)
- RETURNS boolean
- LANGUAGE plpgsql
-AS $function$
-	DECLARE
-	NULL_VALID_TO timestamp[];
-	BEGIN
-			IF viewname = 'collar_v' THEN
-				NULL_VALID_TO := ARRAY(
-				SELECT valid_to 
-				FROM collar_v 
-				WHERE collar_id = id);
-			ELSEIF viewname = 'animal_v' THEN
-				NULL_VALID_TO := ARRAY(
-					SELECT valid_to 
-					FROM animal_v 
-					WHERE critter_id = id
-				);
-			ELSE RAISE EXCEPTION 'Please provide a view name ie: animal_v, collar_v';
-			END IF;
-			RETURN TRUE = ANY(SELECT UNNEST(NULL_VALID_TO)IS NULL);
-		
-	END;
-
-$function$
-;
-COMMENT ON FUNCTION bctw.id_has_null_valid_to(id uuid, viewname text) IS 'Checks for userIds that a null valid_to for any record with that userId. NOTE: viewname can be animal_v or collar_v';
 
 --
 -- Name: code; Type: TABLE; Schema: bctw; Owner: bctw
@@ -5757,6 +6285,96 @@ COMMENT ON VIEW bctw.animal_v IS 'view representing the animal table with all co
 
 
 --
+-- Name: animal_current_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.animal_current_v AS
+ SELECT animal_v.critter_id,
+    animal_v.critter_transaction_id,
+    animal_v.animal_id,
+    animal_v.animal_status,
+    animal_v.associated_animal_id,
+    animal_v.associated_animal_relationship,
+    animal_v.capture_comment,
+    animal_v.capture_date,
+    animal_v.capture_latitude,
+    animal_v.capture_longitude,
+    animal_v.capture_utm_easting,
+    animal_v.capture_utm_northing,
+    animal_v.capture_utm_zone,
+    animal_v.collective_unit,
+    animal_v.animal_colouration,
+    animal_v.ear_tag_left_id,
+    animal_v.ear_tag_right_id,
+    animal_v.ear_tag_left_colour,
+    animal_v.ear_tag_right_colour,
+    animal_v.estimated_age,
+    animal_v.juvenile_at_heel,
+    animal_v.juvenile_at_heel_count,
+    animal_v.life_stage,
+    animal_v.map_colour,
+    animal_v.mortality_comment,
+    animal_v.mortality_date,
+    animal_v.mortality_latitude,
+    animal_v.mortality_longitude,
+    animal_v.mortality_utm_easting,
+    animal_v.mortality_utm_northing,
+    animal_v.mortality_utm_zone,
+    animal_v.proximate_cause_of_death,
+    animal_v.ultimate_cause_of_death,
+    animal_v.population_unit,
+    animal_v.recapture,
+    animal_v.region,
+    animal_v.release_comment,
+    animal_v.release_date,
+    animal_v.release_latitude,
+    animal_v.release_longitude,
+    animal_v.release_utm_easting,
+    animal_v.release_utm_northing,
+    animal_v.release_utm_zone,
+    animal_v.sex,
+    animal_v.species,
+    animal_v.translocation,
+    animal_v.wlh_id,
+    animal_v.animal_comment,
+    animal_v.pcod_predator_species,
+    animal_v.ucod_predator_species,
+    animal_v.predator_known,
+    animal_v.captivity_status,
+    animal_v.mortality_captivity_status,
+    animal_v.pcod_confidence,
+    animal_v.ucod_confidence,
+    animal_v.mortality_report,
+    animal_v.mortality_investigation,
+    animal_v.valid_from,
+    animal_v.valid_to,
+    animal_v.created_at,
+    animal_v.created_by_user_id,
+    animal_v.owned_by_user_id
+   FROM bctw.animal_v
+  WHERE bctw.is_valid(animal_v.valid_to);
+
+
+ALTER TABLE bctw.animal_current_v OWNER TO bctw;
+
+--
+-- Name: api_lotek_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.api_lotek_collar_data (
+    id uuid DEFAULT crypto.gen_random_uuid() NOT NULL,
+    ndeviceid integer NOT NULL,
+    strspecialid text,
+    dtcreated timestamp without time zone,
+    strsatellite text,
+    dtrecord_added timestamp without time zone,
+    dtrecord_updated timestamp without time zone
+);
+
+
+ALTER TABLE bctw.api_lotek_collar_data OWNER TO bctw;
+
+--
 -- Name: api_vectronics_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -5791,6 +6409,21 @@ COMMENT ON COLUMN bctw.api_vectronics_collar_data.idcollar IS 'the device ID of 
 
 COMMENT ON COLUMN bctw.api_vectronics_collar_data.collartype IS 'the key used in the API to fetch device telemetry';
 
+
+--
+-- Name: api_vectronics_collar_data_bak; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.api_vectronics_collar_data_bak (
+    idcollar integer,
+    comtype text,
+    idcom text,
+    collarkey character varying(1000),
+    collartype integer
+);
+
+
+ALTER TABLE bctw.api_vectronics_collar_data_bak OWNER TO bctw;
 
 --
 -- Name: ats_collar_data; Type: TABLE; Schema: bctw; Owner: bctw
@@ -6135,54 +6768,25 @@ COMMENT ON COLUMN bctw.collar_animal_assignment.attachment_end IS 'when the coll
 
 
 --
--- Name: collar_file; Type: TABLE; Schema: bctw; Owner: bctw
+-- Name: collar_animal_assignment_v; Type: VIEW; Schema: bctw; Owner: bctw
 --
 
-CREATE TABLE bctw.collar_file (
-    file_id integer NOT NULL,
-    collar_id uuid NOT NULL,
-    device_id integer NOT NULL,
-    file_name text NOT NULL,
-    file_contents bytea,
-    created_at timestamp without time zone DEFAULT now() NOT NULL,
-    created_by_user_id integer,
-    updated_at timestamp without time zone DEFAULT now(),
-    updated_by_user_id integer,
-    valid_from timestamp without time zone DEFAULT now() NOT NULL,
-    valid_to timestamp without time zone
-);
+CREATE VIEW bctw.collar_animal_assignment_v AS
+ SELECT collar_animal_assignment.assignment_id,
+    collar_animal_assignment.collar_id,
+    collar_animal_assignment.critter_id,
+    collar_animal_assignment.attachment_start,
+    collar_animal_assignment.attachment_end
+   FROM bctw.collar_animal_assignment;
 
 
-ALTER TABLE bctw.collar_file OWNER TO bctw;
+ALTER TABLE bctw.collar_animal_assignment_v OWNER TO bctw;
 
 --
--- Name: TABLE collar_file; Type: COMMENT; Schema: bctw; Owner: bctw
+-- Name: VIEW collar_animal_assignment_v; Type: COMMENT; Schema: bctw; Owner: bctw
 --
 
-COMMENT ON TABLE bctw.collar_file IS 'incomplete - table for storing files associated with a collar.
-todo: how to line break files';
-
-
---
--- Name: collar_file_file_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
---
-
-CREATE SEQUENCE bctw.collar_file_file_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE bctw.collar_file_file_id_seq OWNER TO bctw;
-
---
--- Name: collar_file_file_id_seq; Type: SEQUENCE OWNED BY; Schema: bctw; Owner: bctw
---
-
-ALTER SEQUENCE bctw.collar_file_file_id_seq OWNED BY bctw.collar_file.file_id;
+COMMENT ON VIEW bctw.collar_animal_assignment_v IS 'Simplified view for collar_animal_assignment';
 
 
 --
@@ -6266,6 +6870,133 @@ ALTER TABLE bctw.collar_v OWNER TO bctw;
 
 COMMENT ON VIEW bctw.collar_v IS 'view representing the collar table with all code integers replaced by their descriptions';
 
+
+--
+-- Name: collar_current_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.collar_current_v AS
+ SELECT collar_v.collar_id,
+    collar_v.collar_transaction_id,
+    collar_v.camera_device_id,
+    collar_v.device_id,
+    collar_v.device_deployment_status,
+    collar_v.device_make,
+    collar_v.device_malfunction_type,
+    collar_v.device_model,
+    collar_v.device_status,
+    collar_v.device_type,
+    collar_v.dropoff_device_id,
+    collar_v.dropoff_frequency,
+    collar_v.dropoff_mechanism,
+    collar_v.dropoff_frequency_unit,
+    collar_v.fix_interval,
+    collar_v.fix_interval_rate,
+    collar_v.frequency,
+    collar_v.implant_device_id,
+    collar_v.frequency_unit,
+    collar_v.mortality_mode,
+    collar_v.mortality_period_hr,
+    collar_v.malfunction_date,
+    collar_v.malfunction_comment,
+    collar_v.activation_status,
+    collar_v.activation_comment,
+    collar_v.first_activation_month,
+    collar_v.first_activation_year,
+    collar_v.retrieval_date,
+    collar_v.retrieved,
+    collar_v.retrieval_comment,
+    collar_v.satellite_network,
+    collar_v.device_comment,
+    collar_v.offline_date,
+    collar_v.offline_type,
+    collar_v.offline_comment,
+    collar_v.device_condition,
+    collar_v.created_at,
+    collar_v.created_by_user_id,
+    collar_v.valid_from,
+    collar_v.valid_to,
+    collar_v.owned_by_user_id
+   FROM bctw.collar_v
+  WHERE (collar_v.valid_to IS NULL);
+
+
+ALTER TABLE bctw.collar_current_v OWNER TO bctw;
+
+--
+-- Name: VIEW collar_current_v; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON VIEW bctw.collar_current_v IS 'Current view of all the devices in the system.
+Where valid_to IS NULL.';
+
+
+--
+-- Name: collar_file; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.collar_file (
+    file_id integer NOT NULL,
+    collar_id uuid NOT NULL,
+    device_id integer NOT NULL,
+    file_name text NOT NULL,
+    file_contents bytea,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    created_by_user_id integer,
+    updated_at timestamp without time zone DEFAULT now(),
+    updated_by_user_id integer,
+    valid_from timestamp without time zone DEFAULT now() NOT NULL,
+    valid_to timestamp without time zone
+);
+
+
+ALTER TABLE bctw.collar_file OWNER TO bctw;
+
+--
+-- Name: TABLE collar_file; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.collar_file IS 'incomplete - table for storing files associated with a collar.
+todo: how to line break files';
+
+
+--
+-- Name: collar_file_file_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
+--
+
+CREATE SEQUENCE bctw.collar_file_file_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE bctw.collar_file_file_id_seq OWNER TO bctw;
+
+--
+-- Name: collar_file_file_id_seq; Type: SEQUENCE OWNED BY; Schema: bctw; Owner: bctw
+--
+
+ALTER SEQUENCE bctw.collar_file_file_id_seq OWNED BY bctw.collar_file.file_id;
+
+
+--
+-- Name: collar_ids_with_no_null_valid_to; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.collar_ids_with_no_null_valid_to AS
+ SELECT collar_v.collar_id,
+    collar_v.device_id,
+    collar_v.device_make,
+    collar_v.device_status,
+    collar_v.valid_to
+   FROM bctw.collar_v
+  WHERE (bctw.id_has_null_valid_to(collar_v.collar_id, 'collar_v'::text) = false);
+
+
+ALTER TABLE bctw.collar_ids_with_no_null_valid_to OWNER TO bctw;
 
 --
 -- Name: historical_telemetry; Type: TABLE; Schema: bctw; Owner: bctw
@@ -6698,6 +7429,67 @@ ALTER SEQUENCE bctw.permission_request_request_id_seq OWNED BY bctw.permission_r
 
 
 --
+-- Name: security_reasons; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.security_reasons (
+    security_reason_id uuid DEFAULT crypto.gen_random_uuid() NOT NULL,
+    name text,
+    email text,
+    phone text,
+    organization text,
+    reason text,
+    reason_classification text,
+    valid_from timestamp with time zone DEFAULT now() NOT NULL,
+    valid_to timestamp with time zone,
+    disa_id character varying(20)
+);
+
+
+ALTER TABLE bctw.security_reasons OWNER TO bctw;
+
+--
+-- Name: TABLE security_reasons; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON TABLE bctw.security_reasons IS 'Used in security_rules table for associated meta data rules might have.';
+
+
+--
+-- Name: security_rules; Type: TABLE; Schema: bctw; Owner: bctw
+--
+
+CREATE TABLE bctw.security_rules (
+    security_rule_id integer NOT NULL,
+    species bctw.species_name NOT NULL,
+    population_unit text,
+    wlh_id character varying,
+    rule_start timestamp without time zone,
+    rule_end timestamp without time zone,
+    flag bctw.security_flag NOT NULL,
+    valid_from timestamp with time zone DEFAULT now() NOT NULL,
+    valid_to timestamp with time zone,
+    security_reason_id uuid
+);
+
+
+ALTER TABLE bctw.security_rules OWNER TO bctw;
+
+--
+-- Name: security_rules_security_rule_id_seq; Type: SEQUENCE; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE bctw.security_rules ALTER COLUMN security_rule_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME bctw.security_rules_security_rule_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: species; Type: TABLE; Schema: bctw; Owner: bctw
 --
 
@@ -6723,6 +7515,20 @@ ALTER TABLE bctw.species OWNER TO bctw;
 
 COMMENT ON TABLE bctw.species IS 'a special ''code'' table for species, as business required more fields stored and exported than the existing code table.';
 
+
+--
+-- Name: telemetry_id; Type: SEQUENCE; Schema: bctw; Owner: bctw
+--
+
+CREATE SEQUENCE bctw.telemetry_id
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE bctw.telemetry_id OWNER TO bctw;
 
 --
 -- Name: telemetry_sensor_alert; Type: TABLE; Schema: bctw; Owner: bctw
@@ -6837,6 +7643,264 @@ ALTER TABLE bctw.telemetry_sensor_alert_alert_id_seq OWNER TO bctw;
 
 ALTER SEQUENCE bctw.telemetry_sensor_alert_alert_id_seq OWNED BY bctw.telemetry_sensor_alert.alert_id;
 
+
+--
+-- Name: telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.telemetry_v AS
+ SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM bctw.get_normalized_telemetry('ATS'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+UNION ALL
+ SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM bctw.get_normalized_telemetry('Lotek'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
+UNION ALL
+ SELECT get_normalized_telemetry.collar_id,
+    get_normalized_telemetry.latitude,
+    get_normalized_telemetry.longitude,
+    get_normalized_telemetry.elevation,
+    get_normalized_telemetry.acquisition_date,
+    get_normalized_telemetry.mainbattvolt,
+    get_normalized_telemetry.bckupbattvolt,
+    get_normalized_telemetry.geom,
+    get_normalized_telemetry.deviceid,
+    get_normalized_telemetry.ecefx,
+    get_normalized_telemetry.ecefy,
+    get_normalized_telemetry.ecefz,
+    get_normalized_telemetry.temperature,
+    get_normalized_telemetry.vendor,
+    get_normalized_telemetry.at_activity,
+    get_normalized_telemetry.at_hdop,
+    get_normalized_telemetry.at_numsats,
+    get_normalized_telemetry.lo_pdop,
+    get_normalized_telemetry.lo_rxstatus,
+    get_normalized_telemetry.ve_dop,
+    get_normalized_telemetry.ve_fixtype,
+    get_normalized_telemetry.mortality,
+    get_normalized_telemetry.ve_origincode
+   FROM bctw.get_normalized_telemetry('Vectronic'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode);
+
+
+ALTER TABLE bctw.telemetry_v OWNER TO bctw;
+
+--
+-- Name: VIEW telemetry_v; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON VIEW bctw.telemetry_v IS 'View for the normalized collar data.
+Uses get_normalized_telemetry function to retrieve data.
+Union all does NOT check for duplicates. This is better for performance.';
+
+
+--
+-- Name: telemetry_with_security_m; Type: MATERIALIZED VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE MATERIALIZED VIEW bctw.telemetry_with_security_m AS
+ SELECT crypto.gen_random_uuid() AS row_id,
+    telemetry_v.collar_id,
+    (a.species)::bctw.species_name AS species,
+    a.population_unit,
+    a.wlh_id,
+    telemetry_v.latitude,
+    telemetry_v.longitude,
+    telemetry_v.elevation,
+    telemetry_v.acquisition_date,
+    telemetry_v.mainbattvolt,
+    telemetry_v.bckupbattvolt,
+    telemetry_v.geom,
+    telemetry_v.deviceid,
+    telemetry_v.ecefx,
+    telemetry_v.ecefy,
+    telemetry_v.ecefz,
+    telemetry_v.temperature,
+    telemetry_v.vendor,
+    telemetry_v.at_activity,
+    telemetry_v.at_hdop,
+    telemetry_v.at_numsats,
+    telemetry_v.lo_pdop,
+    telemetry_v.lo_rxstatus,
+    telemetry_v.ve_dop,
+    telemetry_v.ve_fixtype,
+    telemetry_v.mortality,
+    telemetry_v.ve_origincode,
+    ( SELECT get_security_id.get_security_id
+           FROM bctw.get_security_id((a.species)::bctw.species_name, (a.population_unit)::text, 'PERSECUTION_OR_HARM_IND'::bctw.security_flag, a.wlh_id, telemetry_v.acquisition_date) get_security_id(get_security_id)) AS persecution_or_harm_ind,
+    ( SELECT get_security_id.get_security_id
+           FROM bctw.get_security_id((a.species)::bctw.species_name, (a.population_unit)::text, 'FEDERAL_OR_PROV_STATUE_IND'::bctw.security_flag, a.wlh_id, telemetry_v.acquisition_date) get_security_id(get_security_id)) AS federal_or_prov_statue_ind,
+    ( SELECT get_security_id.get_security_id
+           FROM bctw.get_security_id((a.species)::bctw.species_name, (a.population_unit)::text, 'GOVERNMENT_INTEREST_IND'::bctw.security_flag, a.wlh_id, telemetry_v.acquisition_date) get_security_id(get_security_id)) AS government_interest_ind,
+    ( SELECT get_security_id.get_security_id
+           FROM bctw.get_security_id((a.species)::bctw.species_name, (a.population_unit)::text, 'PROPRIETARY_IND'::bctw.security_flag, a.wlh_id, telemetry_v.acquisition_date) get_security_id(get_security_id)) AS proprietary_ind
+   FROM ((bctw.telemetry_v
+     JOIN bctw.collar_animal_assignment c ON ((telemetry_v.collar_id = c.collar_id)))
+     JOIN bctw.animal_current_v a ON ((a.critter_id = c.critter_id)))
+  WITH NO DATA;
+
+
+ALTER TABLE bctw.telemetry_with_security_m OWNER TO bctw;
+
+--
+-- Name: MATERIALIZED VIEW telemetry_with_security_m; Type: COMMENT; Schema: bctw; Owner: bctw
+--
+
+COMMENT ON MATERIALIZED VIEW bctw.telemetry_with_security_m IS 'Materialied view for telemetry_with_security. This is where the flagging of the data occurs. Drives both internal and external views.';
+
+
+--
+-- Name: telemetry_with_security_ext_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.telemetry_with_security_ext_v AS
+ SELECT i.collar_id,
+    i.species,
+    i.population_unit,
+    i.wlh_id,
+    i.latitude,
+    i.longitude,
+    i.elevation,
+    i.acquisition_date,
+    i.mainbattvolt,
+    i.bckupbattvolt,
+    i.geom,
+    i.deviceid,
+    i.ecefx,
+    i.ecefy,
+    i.ecefz,
+    i.temperature,
+    i.vendor,
+    i.at_activity,
+    i.at_hdop,
+    i.at_numsats,
+    i.lo_pdop,
+    i.lo_rxstatus,
+    i.ve_dop,
+    i.ve_fixtype,
+    i.mortality,
+    i.ve_origincode,
+    (i.persecution_or_harm_ind IS NOT NULL) AS persecution_or_harm_ind,
+    (i.federal_or_prov_statue_ind IS NOT NULL) AS federal_or_prov_statue_ind,
+    (i.government_interest_ind IS NOT NULL) AS government_interest_ind,
+    (i.proprietary_ind IS NOT NULL) AS proprietary_ind,
+    ((i.persecution_or_harm_ind IS NOT NULL) OR (i.federal_or_prov_statue_ind IS NOT NULL) OR (i.government_interest_ind IS NOT NULL) OR (i.proprietary_ind IS NOT NULL)) AS secure_ind
+   FROM bctw.telemetry_with_security_m i;
+
+
+ALTER TABLE bctw.telemetry_with_security_ext_v OWNER TO bctw;
+
+--
+-- Name: telemetry_with_security_int_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.telemetry_with_security_int_v AS
+ SELECT i.collar_id,
+    i.species,
+    i.population_unit,
+    i.wlh_id,
+    i.latitude,
+    i.longitude,
+    i.elevation,
+    i.acquisition_date,
+    i.mainbattvolt,
+    i.bckupbattvolt,
+    i.geom,
+    i.deviceid,
+    i.ecefx,
+    i.ecefy,
+    i.ecefz,
+    i.temperature,
+    i.vendor,
+    i.at_activity,
+    i.at_hdop,
+    i.at_numsats,
+    i.lo_pdop,
+    i.lo_rxstatus,
+    i.ve_dop,
+    i.ve_fixtype,
+    i.mortality,
+    i.ve_origincode,
+    i.persecution_or_harm_ind,
+    i.federal_or_prov_statue_ind,
+    i.government_interest_ind,
+    i.proprietary_ind,
+    (((i.proprietary_ind || i.persecution_or_harm_ind) || i.government_interest_ind) || i.proprietary_ind) AS secure_ind
+   FROM bctw.telemetry_with_security_m i;
+
+
+ALTER TABLE bctw.telemetry_with_security_int_v OWNER TO bctw;
+
+--
+-- Name: unassigned_telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
+--
+
+CREATE VIEW bctw.unassigned_telemetry_v AS
+ SELECT DISTINCT lc.collar_id,
+    l.ndeviceid AS deviceid,
+    'Lotek'::text AS vendor
+   FROM (bctw.collar lc
+     RIGHT JOIN bctw.api_lotek_collar_data l ON ((l.ndeviceid = lc.device_id)))
+  WHERE (lc.device_id IS NULL)
+UNION ALL
+ SELECT DISTINCT vc.collar_id,
+    v.idcollar AS deviceid,
+    'Vectronic'::text AS vendor
+   FROM (bctw.collar vc
+     RIGHT JOIN bctw.api_vectronics_collar_data v ON ((v.idcollar = vc.device_id)))
+  WHERE (vc.device_id IS NULL)
+UNION ALL
+ SELECT DISTINCT ac.collar_id,
+    a.collarserialnumber AS deviceid,
+    'ATS'::text AS vendor
+   FROM (bctw.collar ac
+     RIGHT JOIN bctw.ats_collar_data a ON ((a.collarserialnumber = ac.device_id)))
+  WHERE (ac.device_id IS NULL);
+
+
+ALTER TABLE bctw.unassigned_telemetry_v OWNER TO bctw;
 
 --
 -- Name: user; Type: TABLE; Schema: bctw; Owner: bctw
@@ -7293,13 +8357,6 @@ CREATE VIEW bctw_dapi_v1.alert_v AS
 
 
 ALTER TABLE bctw_dapi_v1.alert_v OWNER TO bctw;
-
---
--- Name: VIEW alert_v; Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
---
-
-COMMENT ON VIEW bctw_dapi_v1.alert_v IS 'user telemetry alerts from bctw.telemetry_sensor_alert table';
-
 
 --
 -- Name: animal_historic_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
@@ -7829,422 +8886,6 @@ CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
 ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
 
 --
--- Name: user_animal_assignment_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
---
-
-CREATE VIEW bctw_dapi_v1.user_animal_assignment_v AS
- SELECT ua.user_id AS requested_for_id,
-    ( SELECT "user".email
-           FROM bctw."user"
-          WHERE ("user".id = ua.user_id)) AS requested_for_email,
-    ( SELECT a.animal_id
-           FROM bctw.animal a
-          WHERE ((a.critter_id = ua.critter_id) AND bctw.is_valid(a.valid_to))) AS animal_id,
-    ( SELECT a.wlh_id
-           FROM bctw.animal a
-          WHERE ((a.critter_id = ua.critter_id) AND bctw.is_valid(a.valid_to))) AS wlh_id,
-    ua.valid_from AS requested_at,
-    ua.created_by_user_id AS requested_by_id,
-    ( SELECT COALESCE("user".idir, "user".bceid) AS "coalesce"
-           FROM bctw."user"
-          WHERE ("user".id = ua.user_id)) AS requested_by,
-    ua.permission_type
-   FROM bctw.user_animal_assignment ua
-  WHERE bctw.is_valid(ua.valid_to);
-
-
-ALTER TABLE bctw_dapi_v1.user_animal_assignment_v OWNER TO bctw;
-
---
--- Name: VIEW user_animal_assignment_v; Type: COMMENT; Schema: bctw_dapi_v1; Owner: bctw
---
-
-COMMENT ON VIEW bctw_dapi_v1.user_animal_assignment_v IS 'A bctw.user_animal_assignment table view for current user-critter assignments.';
-
-
---
--- Name: user_v; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
---
-
-CREATE VIEW bctw_dapi_v1.user_v AS
- SELECT u.id,
-    u.domain,
-    u.username,
-    u.idir,
-    u.bceid,
-    u.firstname,
-    u.lastname,
-    u.email,
-    u.phone,
-    (urt.role_type)::text AS role_type,
-    (EXISTS ( SELECT 1
-           FROM bctw.animal
-          WHERE (animal.owned_by_user_id = u.id))) AS is_owner,
-    u.created_at,
-    u.created_by_user_id,
-    u.updated_at
-   FROM ((bctw."user" u
-     LEFT JOIN bctw.user_role_xref rx ON ((rx.user_id = u.id)))
-     LEFT JOIN bctw.user_role_type urt ON ((urt.role_id = rx.role_id)))
-  WHERE bctw.is_valid(u.valid_to);
-
-
-ALTER TABLE bctw_dapi_v1.user_v OWNER TO bctw;
-
---
--- Name: vectronic_devices_without_keyx_entries; Type: VIEW; Schema: bctw_dapi_v1; Owner: bctw
---
-
-CREATE VIEW bctw_dapi_v1.vectronic_devices_without_keyx_entries AS
- SELECT collar.collar_id,
-    collar.collar_transaction_id,
-    collar.camera_device_id,
-    collar.device_id,
-    collar.device_deployment_status,
-    collar.device_make,
-    collar.device_malfunction_type,
-    collar.device_model,
-    collar.device_status,
-    collar.device_type,
-    collar.dropoff_device_id,
-    collar.dropoff_frequency,
-    collar.dropoff_frequency_unit,
-    collar.fix_interval,
-    collar.fix_interval_rate,
-    collar.frequency,
-    collar.frequency_unit,
-    collar.malfunction_date,
-    collar.activation_comment,
-    collar.first_activation_month,
-    collar.first_activation_year,
-    collar.retrieval_date,
-    collar.retrieved,
-    collar.satellite_network,
-    collar.device_comment,
-    collar.activation_status,
-    collar.created_at,
-    collar.created_by_user_id,
-    collar.updated_at,
-    collar.updated_by_user_id,
-    collar.valid_from,
-    collar.valid_to,
-    collar.owned_by_user_id,
-    collar.offline_date,
-    collar.offline_type,
-    collar.device_condition,
-    collar.retrieval_comment,
-    collar.malfunction_comment,
-    collar.offline_comment,
-    collar.mortality_mode,
-    collar.mortality_period_hr,
-    collar.dropoff_mechanism,
-    collar.implant_device_id
-   FROM bctw.collar
-  WHERE ((collar.device_make = ( SELECT code.code_id
-           FROM bctw.code
-          WHERE ((code.code_description)::text = 'Vectronic'::text))) AND (NOT (collar.device_id IN ( SELECT api_vectronics_collar_data.idcollar
-           FROM bctw.api_vectronics_collar_data))));
-
-
-ALTER TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries OWNER TO bctw;
-
-
---
--- Name: telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.telemetry_v
-AS SELECT get_normalized_telemetry.collar_id,
-    get_normalized_telemetry.latitude,
-    get_normalized_telemetry.longitude,
-    get_normalized_telemetry.elevation,
-    get_normalized_telemetry.acquisition_date,
-    get_normalized_telemetry.mainbattvolt,
-    get_normalized_telemetry.bckupbattvolt,
-    get_normalized_telemetry.geom,
-    get_normalized_telemetry.deviceid,
-    get_normalized_telemetry.ecefx,
-    get_normalized_telemetry.ecefy,
-    get_normalized_telemetry.ecefz,
-    get_normalized_telemetry.temperature,
-    get_normalized_telemetry.vendor,
-    get_normalized_telemetry.at_activity,
-    get_normalized_telemetry.at_hdop,
-    get_normalized_telemetry.at_numsats,
-    get_normalized_telemetry.lo_pdop,
-    get_normalized_telemetry.lo_rxstatus,
-    get_normalized_telemetry.ve_dop,
-    get_normalized_telemetry.ve_fixtype,
-    get_normalized_telemetry.mortality,
-    get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('ats'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
-UNION ALL
- SELECT get_normalized_telemetry.collar_id,
-    get_normalized_telemetry.latitude,
-    get_normalized_telemetry.longitude,
-    get_normalized_telemetry.elevation,
-    get_normalized_telemetry.acquisition_date,
-    get_normalized_telemetry.mainbattvolt,
-    get_normalized_telemetry.bckupbattvolt,
-    get_normalized_telemetry.geom,
-    get_normalized_telemetry.deviceid,
-    get_normalized_telemetry.ecefx,
-    get_normalized_telemetry.ecefy,
-    get_normalized_telemetry.ecefz,
-    get_normalized_telemetry.temperature,
-    get_normalized_telemetry.vendor,
-    get_normalized_telemetry.at_activity,
-    get_normalized_telemetry.at_hdop,
-    get_normalized_telemetry.at_numsats,
-    get_normalized_telemetry.lo_pdop,
-    get_normalized_telemetry.lo_rxstatus,
-    get_normalized_telemetry.ve_dop,
-    get_normalized_telemetry.ve_fixtype,
-    get_normalized_telemetry.mortality,
-    get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('lotek'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode)
-UNION ALL
- SELECT get_normalized_telemetry.collar_id,
-    get_normalized_telemetry.latitude,
-    get_normalized_telemetry.longitude,
-    get_normalized_telemetry.elevation,
-    get_normalized_telemetry.acquisition_date,
-    get_normalized_telemetry.mainbattvolt,
-    get_normalized_telemetry.bckupbattvolt,
-    get_normalized_telemetry.geom,
-    get_normalized_telemetry.deviceid,
-    get_normalized_telemetry.ecefx,
-    get_normalized_telemetry.ecefy,
-    get_normalized_telemetry.ecefz,
-    get_normalized_telemetry.temperature,
-    get_normalized_telemetry.vendor,
-    get_normalized_telemetry.at_activity,
-    get_normalized_telemetry.at_hdop,
-    get_normalized_telemetry.at_numsats,
-    get_normalized_telemetry.lo_pdop,
-    get_normalized_telemetry.lo_rxstatus,
-    get_normalized_telemetry.ve_dop,
-    get_normalized_telemetry.ve_fixtype,
-    get_normalized_telemetry.mortality,
-    get_normalized_telemetry.ve_origincode
-   FROM get_normalized_telemetry('vectronic'::text) get_normalized_telemetry(collar_id, latitude, longitude, elevation, acquisition_date, mainbattvolt, bckupbattvolt, geom, deviceid, ecefx, ecefy, ecefz, temperature, vendor, at_activity, at_hdop, at_numsats, lo_pdop, lo_rxstatus, ve_dop, ve_fixtype, mortality, ve_origincode);
-
-COMMENT ON VIEW bctw.telemetry_v IS 'View for the normalized collar data.
-Uses get_normalized_telemetry function to retrieve data.
-Union all does NOT check for duplicates. This is better for performance.';
-
--- Permissions
-
-ALTER TABLE bctw.telemetry_v OWNER TO bctw;
-GRANT ALL ON TABLE bctw.telemetry_v TO bctw;
-
---
--- Name: unassigned_telemetry_v; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.unassigned_telemetry_v
-AS SELECT DISTINCT lc.collar_id,
-    l.deviceid,
-    'lotek'::text AS vendor
-   FROM collar lc
-     RIGHT JOIN lotek_collar_data l ON l.deviceid = lc.device_id
-  WHERE lc.device_id IS NULL
-UNION ALL
- SELECT DISTINCT vc.collar_id,
-    v.idcollar AS deviceid,
-    'vectronic'::text AS vendor
-   FROM collar vc
-     RIGHT JOIN vectronics_collar_data v ON v.idcollar = vc.device_id
-  WHERE vc.device_id IS NULL
-UNION ALL
- SELECT DISTINCT ac.collar_id,
-    a.collarserialnumber AS deviceid,
-    'ats'::text AS vendor
-   FROM collar ac
-     RIGHT JOIN ats_collar_data a ON a.collarserialnumber = ac.device_id
-  WHERE ac.device_id IS NULL;
-
- COMMENT ON VIEW bctw.unassigned_telemetry_v IS 'View for unassigned telemetry that has not been assigned a device_id';
-
--- Permissions
-
-ALTER TABLE bctw.unassigned_telemetry_v OWNER TO bctw;
-GRANT ALL ON TABLE bctw.unassigned_telemetry_v TO bctw;
-
---
--- Name: collar_current_v; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.collar_current_v
-AS SELECT collar_v.collar_id,
-    collar_v.collar_transaction_id,
-    collar_v.camera_device_id,
-    collar_v.device_id,
-    collar_v.device_deployment_status,
-    collar_v.device_make,
-    collar_v.device_malfunction_type,
-    collar_v.device_model,
-    collar_v.device_status,
-    collar_v.device_type,
-    collar_v.dropoff_device_id,
-    collar_v.dropoff_frequency,
-    collar_v.dropoff_mechanism,
-    collar_v.dropoff_frequency_unit,
-    collar_v.fix_interval,
-    collar_v.fix_interval_rate,
-    collar_v.frequency,
-    collar_v.implant_device_id,
-    collar_v.frequency_unit,
-    collar_v.mortality_mode,
-    collar_v.mortality_period_hr,
-    collar_v.malfunction_date,
-    collar_v.malfunction_comment,
-    collar_v.activation_status,
-    collar_v.activation_comment,
-    collar_v.first_activation_month,
-    collar_v.first_activation_year,
-    collar_v.retrieval_date,
-    collar_v.retrieved,
-    collar_v.retrieval_comment,
-    collar_v.satellite_network,
-    collar_v.device_comment,
-    collar_v.offline_date,
-    collar_v.offline_type,
-    collar_v.offline_comment,
-    collar_v.device_condition,
-    collar_v.created_at,
-    collar_v.created_by_user_id,
-    collar_v.valid_from,
-    collar_v.valid_to,
-    collar_v.owned_by_user_id
-   FROM collar_v
-  WHERE collar_v.valid_to IS NULL;
-
-COMMENT ON VIEW bctw.collar_current_v IS 'Current view of all the devices in the system.
-Where valid_to IS NULL.';
-
--- Permissions
-
-ALTER TABLE bctw.collar_current_v OWNER TO bctw;
-GRANT ALL ON TABLE bctw.collar_current_v TO bctw;
-
---
--- Name: animal_current_v; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.animal_current_v
-AS SELECT animal_v.critter_id,
-    animal_v.critter_transaction_id,
-    animal_v.animal_id,
-    animal_v.animal_status,
-    animal_v.associated_animal_id,
-    animal_v.associated_animal_relationship,
-    animal_v.capture_comment,
-    animal_v.capture_date,
-    animal_v.capture_latitude,
-    animal_v.capture_longitude,
-    animal_v.capture_utm_easting,
-    animal_v.capture_utm_northing,
-    animal_v.capture_utm_zone,
-    animal_v.collective_unit,
-    animal_v.animal_colouration,
-    animal_v.ear_tag_left_id,
-    animal_v.ear_tag_right_id,
-    animal_v.ear_tag_left_colour,
-    animal_v.ear_tag_right_colour,
-    animal_v.estimated_age,
-    animal_v.juvenile_at_heel,
-    animal_v.juvenile_at_heel_count,
-    animal_v.life_stage,
-    animal_v.map_colour,
-    animal_v.mortality_comment,
-    animal_v.mortality_date,
-    animal_v.mortality_latitude,
-    animal_v.mortality_longitude,
-    animal_v.mortality_utm_easting,
-    animal_v.mortality_utm_northing,
-    animal_v.mortality_utm_zone,
-    animal_v.proximate_cause_of_death,
-    animal_v.ultimate_cause_of_death,
-    animal_v.population_unit,
-    animal_v.recapture,
-    animal_v.region,
-    animal_v.release_comment,
-    animal_v.release_date,
-    animal_v.release_latitude,
-    animal_v.release_longitude,
-    animal_v.release_utm_easting,
-    animal_v.release_utm_northing,
-    animal_v.release_utm_zone,
-    animal_v.sex,
-    animal_v.species,
-    animal_v.translocation,
-    animal_v.wlh_id,
-    animal_v.animal_comment,
-    animal_v.pcod_predator_species,
-    animal_v.ucod_predator_species,
-    animal_v.predator_known,
-    animal_v.captivity_status,
-    animal_v.mortality_captivity_status,
-    animal_v.pcod_confidence,
-    animal_v.ucod_confidence,
-    animal_v.mortality_report,
-    animal_v.mortality_investigation,
-    animal_v.valid_from,
-    animal_v.valid_to,
-    animal_v.created_at,
-    animal_v.created_by_user_id,
-    animal_v.owned_by_user_id
-   FROM animal_v
-  WHERE animal_v.valid_to IS NULL;
-
- COMMENT ON VIEW bctw.animal_current_v IS 'Current view of all the animals in the system.
-Where valid_to IS NULL.';
--- Permissions
-
-ALTER TABLE bctw.animal_current_v OWNER TO bctw;
-GRANT ALL ON TABLE bctw.animal_current_v TO bctw;
-
---
--- Name: collar_ids_with_no_null_valid_to; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.collar_ids_with_no_null_valid_to
-AS SELECT collar_v.collar_id,
-    collar_v.device_id,
-    collar_v.device_make,
-    collar_v.device_status,
-    collar_v.valid_to
-   FROM collar_v
-  WHERE id_has_null_valid_to(collar_v.collar_id, 'collar_v'::text) = false;
-
--- Permissions
-
-ALTER TABLE bctw.collar_ids_with_no_null_valid_to OWNER TO bctw;
-GRANT ALL ON TABLE bctw.collar_ids_with_no_null_valid_to TO bctw;
-
---
--- Name: collar_animal_assignment_v; Type: VIEW; Schema: bctw; Owner: bctw
---
-
-CREATE OR REPLACE VIEW bctw.collar_animal_assignment_v
-AS SELECT collar_animal_assignment.assignment_id,
-    collar_animal_assignment.collar_id,
-    collar_animal_assignment.critter_id,
-    collar_animal_assignment.attachment_start,
-    collar_animal_assignment.attachment_end
-   FROM collar_animal_assignment;
-
-COMMENT ON VIEW bctw.collar_animal_assignment_v IS 'Simplified view for collar_animal_assignment';
-
--- Permissions
-
-ALTER TABLE bctw.collar_animal_assignment_v OWNER TO bctw;
-GRANT ALL ON TABLE bctw.collar_animal_assignment_v TO bctw;
-
- COMMENT ON VIEW bctw.collar_ids_with_no_null_valid_to IS 'View for all collar_ids that have no null_valid_to records. Mostly malfunctions/offline devices';
-
---
 -- Name: code code_id; Type: DEFAULT; Schema: bctw; Owner: bctw
 --
 
@@ -8419,6 +9060,14 @@ ALTER TABLE ONLY bctw.historical_telemetry
 
 
 --
+-- Name: api_lotek_collar_data lotek_collar_data_idposition_key; Type: CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.api_lotek_collar_data
+    ADD CONSTRAINT lotek_collar_data_idposition_key UNIQUE (id);
+
+
+--
 -- Name: lotek_collar_data lotek_collar_data_timeid_key; Type: CONSTRAINT; Schema: bctw; Owner: bctw
 --
 
@@ -8443,6 +9092,22 @@ ALTER TABLE ONLY bctw.permission_request
 
 
 --
+-- Name: security_reasons security_reason_pkey; Type: CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.security_reasons
+    ADD CONSTRAINT security_reason_pkey PRIMARY KEY (security_reason_id);
+
+
+--
+-- Name: security_rules security_rules_pkey; Type: CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.security_rules
+    ADD CONSTRAINT security_rules_pkey PRIMARY KEY (security_rule_id);
+
+
+--
 -- Name: species species2_pkey; Type: CONSTRAINT; Schema: bctw; Owner: bctw
 --
 
@@ -8456,6 +9121,14 @@ ALTER TABLE ONLY bctw.species
 
 ALTER TABLE ONLY bctw.telemetry_sensor_alert
     ADD CONSTRAINT telemetry_sensor_alert_pkey PRIMARY KEY (alert_id);
+
+
+--
+-- Name: api_lotek_collar_data unique_deviceid; Type: CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.api_lotek_collar_data
+    ADD CONSTRAINT unique_deviceid UNIQUE (ndeviceid);
 
 
 --
@@ -8556,6 +9229,13 @@ CREATE INDEX lotek_collar_data_idx ON bctw.lotek_collar_data USING btree (device
 --
 
 CREATE INDEX lotek_collar_data_idx2 ON bctw.lotek_collar_data USING btree (recdatetime);
+
+
+--
+-- Name: telemetry_with_security_m_idx; Type: INDEX; Schema: bctw; Owner: bctw
+--
+
+CREATE UNIQUE INDEX telemetry_with_security_m_idx ON bctw.telemetry_with_security_m USING btree (row_id);
 
 
 --
@@ -8681,6 +9361,14 @@ ALTER TABLE ONLY bctw.permission_request
 
 
 --
+-- Name: security_rules security_reason_id_fkey; Type: FK CONSTRAINT; Schema: bctw; Owner: bctw
+--
+
+ALTER TABLE ONLY bctw.security_rules
+    ADD CONSTRAINT security_reason_id_fkey FOREIGN KEY (security_reason_id) REFERENCES bctw.security_reasons(security_reason_id);
+
+
+--
 -- Name: user_animal_assignment user_animal_assignment_fk_user_id; Type: FK CONSTRAINT; Schema: bctw; Owner: bctw
 --
 
@@ -8718,6 +9406,7 @@ ALTER TABLE ONLY bctw.user_role_xref
 
 GRANT USAGE ON SCHEMA bctw TO bctw_api;
 GRANT USAGE ON SCHEMA bctw TO bctw_ro;
+GRANT USAGE ON SCHEMA bctw TO exportrole;
 
 
 --
@@ -8733,6 +9422,7 @@ GRANT USAGE ON SCHEMA bctw_dapi_v1 TO bctw_ro;
 --
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO exportrole;
 
 
 --
@@ -8743,6 +9433,13 @@ GRANT SELECT ON TABLE bctw.collar_vendor_api_credentials TO bctw_ro;
 
 
 --
+-- Name: FUNCTION convert_security_dates_bool(recordtime timestamp without time zone, startdate timestamp without time zone, enddate timestamp without time zone); Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT ALL ON FUNCTION bctw.convert_security_dates_bool(recordtime timestamp without time zone, startdate timestamp without time zone, enddate timestamp without time zone) TO exportrole;
+
+
+--
 -- Name: FUNCTION get_animal_collar_assignment_history(stridir text, animalid uuid); Type: ACL; Schema: bctw; Owner: bctw
 --
 
@@ -8750,10 +9447,39 @@ GRANT ALL ON FUNCTION bctw.get_animal_collar_assignment_history(stridir text, an
 
 
 --
+-- Name: FUNCTION get_code_id(codeheader text, description text); Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT ALL ON FUNCTION bctw.get_code_id(codeheader text, description text) TO exportrole;
+
+
+--
+-- Name: FUNCTION get_normalized_telemetry(vndr text); Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT ALL ON FUNCTION bctw.get_normalized_telemetry(vndr text) TO exportrole;
+
+
+--
+-- Name: FUNCTION get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying, recordtime timestamp without time zone); Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT ALL ON FUNCTION bctw.get_security_id(speciesstr bctw.species_name, popunit text, flg bctw.security_flag, wlhid character varying, recordtime timestamp without time zone) TO exportrole;
+
+
+--
+-- Name: FUNCTION get_species_name(code character varying); Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT ALL ON FUNCTION bctw.get_species_name(code character varying) TO exportrole;
+
+
+--
 -- Name: FUNCTION is_valid(valid_to timestamp without time zone); Type: ACL; Schema: bctw; Owner: bctw
 --
 
 GRANT ALL ON FUNCTION bctw.is_valid(valid_to timestamp without time zone) TO bctw_api;
+GRANT ALL ON FUNCTION bctw.is_valid(valid_to timestamp without time zone) TO exportrole;
 
 
 --
@@ -8789,6 +9515,14 @@ GRANT SELECT ON TABLE bctw.code TO bctw_ro;
 --
 
 GRANT SELECT ON TABLE bctw.animal_v TO bctw_ro;
+GRANT SELECT ON TABLE bctw.animal_v TO exportrole;
+
+
+--
+-- Name: TABLE animal_current_v; Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT SELECT ON TABLE bctw.animal_current_v TO exportrole;
 
 
 --
@@ -8827,10 +9561,10 @@ GRANT SELECT ON TABLE bctw.collar_animal_assignment TO bctw_ro;
 
 
 --
--- Name: TABLE collar_file; Type: ACL; Schema: bctw; Owner: bctw
+-- Name: TABLE collar_animal_assignment_v; Type: ACL; Schema: bctw; Owner: bctw
 --
 
-GRANT SELECT ON TABLE bctw.collar_file TO bctw_ro;
+GRANT SELECT ON TABLE bctw.collar_animal_assignment_v TO exportrole;
 
 
 --
@@ -8838,6 +9572,21 @@ GRANT SELECT ON TABLE bctw.collar_file TO bctw_ro;
 --
 
 GRANT SELECT ON TABLE bctw.collar_v TO bctw_ro;
+GRANT SELECT ON TABLE bctw.collar_v TO exportrole;
+
+
+--
+-- Name: TABLE collar_current_v; Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT SELECT ON TABLE bctw.collar_current_v TO exportrole;
+
+
+--
+-- Name: TABLE collar_file; Type: ACL; Schema: bctw; Owner: bctw
+--
+
+GRANT SELECT ON TABLE bctw.collar_file TO bctw_ro;
 
 
 --
@@ -8959,7 +9708,6 @@ GRANT SELECT ON TABLE bctw_dapi_v1.collar_v TO bctw_ro;
 --
 
 GRANT ALL ON TABLE bctw_dapi_v1.alert_v TO bctw_api;
-GRANT SELECT ON TABLE bctw_dapi_v1.alert_v TO bctw_ro;
 
 
 --
@@ -9078,7 +9826,6 @@ GRANT SELECT ON TABLE bctw_dapi_v1.vectronic_devices_without_keyx_entries TO bct
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: bctw_dapi_v1; Owner: bctw
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE bctw IN SCHEMA bctw_dapi_v1 REVOKE ALL ON TABLES  FROM bctw;
 ALTER DEFAULT PRIVILEGES FOR ROLE bctw IN SCHEMA bctw_dapi_v1 GRANT ALL ON TABLES  TO bctw_api;
 
 
